@@ -1,8 +1,11 @@
 import os
+import sys
 
-# TODO deduce system python and arch
-PYTHON = os.environ.get("PYTHON")
-ARCH = os.environ.get("ARCH")
+
+PYTHON26 = "/usr/bin/python2.6"
+PYTHON27 = "/usr/bin/python2.7"
+PYTHON = os.path.basename(PYTHON26) if os.path.exists(PYTHON26) else PYTHON27
+ARCH = "x86_64" if sys.maxsize > 2**32 else "i686"
 PROJECTDIR = os.path.abspath(os.path.curdir)
 
 SCRIPT = """PROJECTDIR={0} PYTHON={1} {1} setup.py bdist_rpm --binary-only --force-arch {2} --requires python-setuptools \

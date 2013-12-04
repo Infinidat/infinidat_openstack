@@ -1,3 +1,4 @@
+from oslo.config import cfg
 from cinder.openstack.common import log as logging
 from cinder.volume.drivers.san import san
 from cinder import exception
@@ -8,11 +9,19 @@ from infi.pyutils.decorators import wraps
 
 LOG = logging.getLogger(__name__)
 
-# FIXME configuration
-# Add provisioning: thick or thin
-# Add pool
-# Do we want to have default format for the volume/snapshot names so the admin will see them as openstack volumes?
-# TODO add metadata on object that says it's managed by openstack and maybe the specific backend that handles it?
+volume_opts = [
+    cfg.StrOpt('infinidat_pool', help='Name of the pool from which volumes are allocated', default=None),
+    cfg.StrOpt('infinidat_provision_type', help='Provisioning type (thick or thin)', default='thick'),
+    cfg.StrOpt('infinidat_volume_name_prefix', help='Cinder volume name prefix in Infinibox', default='openstack-vol'),
+    cfg.StrOpt('infinidat_snapshot_name_prefix', help='Cinder snapshot name prefix in Infinibox',
+               default='openstack-snap'),
+    cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
+]
+
+CONF = cfg.CONF
+CONF.register_opts(volume_opts)
+
+
 SYSTEM_METADATA_VALUE = 'openstack'
 STATS_VENDOR = 'Infinidat'
 STATS_PROTOCOL = 'FibreChannel'
@@ -45,18 +54,26 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     def __init__(self, *args, **kwargs):
         super(InfiniboxVolumeDriver, self).__init__(*args, **kwargs)
-
+        self.configuration.append_config_values(volume_opts)
         self.system = None
         self.pool = None
         self.volume_stats = None
 
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
+        for key in ('infinidat_provision_type', 'infinidat_pool', 'san_login', 'san_password'):
+            if not self.configuration.safe_get(key):
+                raise exception.InvalidInput(reason=_("{0} must be set".format(key)))
+
+        provision_type = self.configuration.infinidat_provision_type
+        if provision_type.upper() not in ('THICK', 'THIN'):
+            raise exception.InvalidInput(reason=_("infinidat_provision_type must be THICK or THIN"))
+
         from infinipy import System
         self.system = System(self.configuration.san_ip,
                              username=self.configuration.san_login,
                              password=self.configuration.san_password)
-        # FIXME if pool is configured, fetch the pool object.
+        self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
 
     @_infinipy_to_cinder_exceptions
     def create_volume(self, cinder_volume):
@@ -110,14 +127,14 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         if cinder_volume.size * GiB != infinidat_snapshot.get_size():
-            raise InfiniboxException("cannot create a volume with size different than its snapshot")
+            raise exception.InvalidInput(reason=_("cannot create a volume with size different than its snapshot"))
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
     @_infinipy_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
         if tgt_cinder_volume.size != src_cinder_volume:
-            raise InfiniboxException("cannot create a cloned volume with size different from source")
+            raise exception.InvalidInput(reason=_("cannot create a cloned volume with size different from source"))
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.
         snapshot = src_infinidat_volume.create_snapshot(name=self._create_snapshot_name(src_cinder_volume) + "-internal")
@@ -136,16 +153,14 @@ class InfiniboxVolumeDriver(san.SanDriver):
         if infinidat_volume.get_size() != new_size_in_bytes:
             if not infinidat_volume.is_master_volume():
                 # Current limitation in Infinibox - cannot resize non-master volumes
-                raise InfiniboxException("cannot resize volume: only master volumes can be resized")
+                raise exception.InvalidInput(reason=_("cannot resize volume: only master volumes can be resized"))
             if infinidat_volume.get_size() < new_size_in_bytes:
-                raise InfiniboxException("cannot resize volume: new size must be greater or equal to current size")
+                raise exception.InvalidInput(reason=_("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)
 
     @_infinipy_to_cinder_exceptions
     def migrate_volume(self, context, volume, host):
-        """Migrate the volume to the specified host."""
-        LOG.info("InfiniboxVolumeDriver.migrate_volume")
-        raise NotImplementedError()
+        return False, None  # not supported: we can't migrate a volume between pools or between Infinibox machines
 
     @_infinipy_to_cinder_exceptions
     def create_snapshot(self, cinder_snapshot):
@@ -169,8 +184,8 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
         data = {}
         backend_name = self.configuration.safe_get('volume_backend_name')
-        #system_and_pool_name = "{0}-{1}".format(self.system.get_name(), self._get_pool().get_name())
-        data["volume_backend_name"] = backend_name or "system_and_pool_name"
+        system_and_pool_name = "{0}-{1}".format(self.system.get_name(), self._get_pool().get_name())
+        data["volume_backend_name"] = backend_name or system_and_pool_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
@@ -183,14 +198,10 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     def _get_pool(self):
         if not self.pool:
-            # Pool not configured by default, we'll get the first pool we find.
-            # Note that we don't save this pool in our class because if it gets deleted we'll always fail to create
-            # volumes and that's not the desired behavior for a user who didn't configure a specific pool.
-            pools = self.system.objects.Pool.find()
+            pools = self.system.objects.Pool.find(name=self.configuration.infinidat_pool)
             if not pools:
-                # FIXME raise better exception
-                raise InfiniboxException("no pool is defined in the system")
-            return pools[0]
+                raise exception.Invalid(_("pool {0} not found".format(self.configuration.infinidat_pool)))
+            self.pool = pools[0]
         return self.pool
 
     def _find_volume(self, cinder_volume):
@@ -221,18 +232,16 @@ class InfiniboxVolumeDriver(san.SanDriver):
                 raise  # some other bad thing happened
 
     def _get_provisioning(self):
-        # FIXME get from configuration
-        return 'THICK'
+        return self.configuration.infinidat_provision_type.upper()
 
     def _create_volume_name(self, cinder_volume):
-        # FIXME get from configuration
-        return "openstack-vol-{0}".format(cinder_volume.id)
+        return "{0}-{1}".format(self.configuration.infinidat_volume_name_prefix, cinder_volume.id)
 
     def _create_snapshot_name(self, cinder_snapshot):
-        return "openstack-snap-{0}".format(cinder_snapshot.id)
+        return "{0}-{1}".format(self.configuration.infinidat_snapshot_name_prefix, cinder_snapshot.id)
 
     def _create_host_name_by_wwpn(self, wwpn):
-        return "openstack-host-{0}".format(wwpn)
+        return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)
 
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
         infinidat_volume.set_metadata("cinder_id", cinder_volume.id)
@@ -246,4 +255,4 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def _assert_connector_has_wwpns(self, connector):
         if not u'wwpns' in connector or not connector[u'wwpns']:
             LOG.warn("no WWPN was provided in connector: {0!r}".format(connector))
-            raise InfiniboxException(u'can map a volume only to WWPN, but no WWPN was received')
+            raise exception.Invalid(_('can map a volume only to WWPN, but no WWPN was received'))

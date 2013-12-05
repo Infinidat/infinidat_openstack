@@ -97,7 +97,7 @@ def write_install_files():
     buildroot = os.environ.get("RPM_BUILD_ROOT")
     existing_files = [item for item in files if os.path.exists(os.path.join(buildroot, item.strip()[1:]))]
     with open("INSTALLED_FILES", 'w') as fd:
-        fd.write("\n".join(set(existing_files)))
+        fd.write("\n".join(sorted(set(existing_files))))
 
 
 def main():

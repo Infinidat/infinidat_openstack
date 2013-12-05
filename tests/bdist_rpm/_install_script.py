@@ -6,12 +6,6 @@ import shutil
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
 
-def get_version():
-    from infi.projector.helper.utils import open_buildout_configfile
-    from infi.recipe.application_packager.rpm import Recipe
-    with open_buildout_configfile("buildout.cfg", False) as buildout:
-        recipe = Recipe(buildout, "project", dict())
-        return recipe.get_project_version__short()
 
 def get_name():
     from infi.projector.helper.utils import open_buildout_configfile
@@ -26,12 +20,12 @@ def get_dependencies():
 
 
 def urlretrieve(*args, **kwargs):
-    print args, kwargs
+    print args, kwargs  # helpful in debugging
     urllib.urlretrieve(*args, **kwargs)
 
 
 def system(*args, **kwargs):
-    print args, kwargs
+    print args, kwargs  # helpful in debugging
     os.system(*args, **kwargs)
 
 
@@ -60,13 +54,33 @@ def build_dependency(dependency):
 def cleanup():
     remove_glob("INSTALLED_FILES*")
 
+
+def shorten_version(long_version):
+    from pkg_resources import parse_version
+    version_numbers = []
+    parsed_version = list(parse_version(long_version))
+    for item in parsed_version:
+        if not item.isdigit():
+            break
+        version_numbers.append(int(item))
+    while len(version_numbers) < 3:
+        version_numbers.append(0)
+    index = parsed_version.index(item)
+    for item in parsed_version[index:]:
+        if item.isdigit():
+            version_numbers.append(int(item))
+            break
+    return '.'.join([str(item) for item in  version_numbers])
+
+
 def change_version_in_setup_py():
     from brownie.importing import import_string
-    __version__ = import_string("{}.__version__".format(get_name()))
+    long_version = import_string("{}.__version__".format(get_name())).__version__
+    short_version = shorten_version(long_version)
     with open("setup.py") as fd:
         setup_py = fd.read()
     with open("setup.py", "w") as fd:
-        fd.write(setup_py.replace(__version__.__version__, get_version()))
+        fd.write(setup_py.replace(long_version, short_version))
 
 
 def install_files():
@@ -91,6 +105,7 @@ def main():
     change_version_in_setup_py()
     install_files()
     write_install_files()
+
 
 if __name__ == "__main__":
     main()

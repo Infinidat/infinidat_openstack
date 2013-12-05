@@ -33,7 +33,7 @@ def main():
 
     os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
     for filename in glob.glob("dist/*rpm"):
-        new = filename.replace(filename[filename.rindex('-'):], get_os_string() + ".rpm")
+        new = filename.replace(filename[filename.rindex('-'):], "-{}.rpm".format(get_os_string()))
         os.rename(filename, new)
 
 if __name__ == "__main__":

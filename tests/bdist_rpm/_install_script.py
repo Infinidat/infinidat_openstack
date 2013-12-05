@@ -6,6 +6,13 @@ import shutil
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
 
+def get_version():
+    from infi.projector.helper.utils import open_buildout_configfile
+    from infi.recipe.application_packager.rpm import Recipe
+    with open_buildout_configfile("buildout.cfg", False) as buildout:
+        recipe = Recipe(buildout, "project", dict())
+        return recipe.get_project_version__short()
+
 def get_name():
     from infi.projector.helper.utils import open_buildout_configfile
     with open_buildout_configfile("buildout.cfg", False) as buildout:
@@ -53,6 +60,14 @@ def build_dependency(dependency):
 def cleanup():
     remove_glob("INSTALLED_FILES*")
 
+def change_version_in_setup_py():
+    from brownie.importing import import_string
+    __version__ = import_string("{}.__version__".format(get_name()))
+    with open("setup.py") as fd:
+        setup_py = fd.read()
+    with open("setup.py", "w") as fd:
+        fd.write(setup_py.replace(__version__.__version__, get_version()))
+
 
 def install_files():
     for dependency in get_dependencies():
@@ -73,6 +88,7 @@ def write_install_files():
 
 def main():
     cleanup()
+    change_version_in_setup_py()
     install_files()
     write_install_files()
 

@@ -10,6 +10,7 @@ PROJECTDIR = os.path.abspath(os.path.curdir)
 
 SCRIPT = """PROJECTDIR={0} PYTHON={1} {1} setup.py bdist_rpm --binary-only --force-arch {2} --requires python-setuptools \
 --install-script=tests/bdist_rpm/_install_script.sh \
---build-script=tests/bdist_rpm/_build_script.sh"""
+--build-script=tests/bdist_rpm/_build_script.sh \
+--vendor Infinidat --packager Infinidat """
 
 os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))

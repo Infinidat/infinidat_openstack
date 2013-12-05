@@ -55,34 +55,6 @@ def cleanup():
     remove_glob("INSTALLED_FILES*")
 
 
-def shorten_version(long_version):
-    from pkg_resources import parse_version
-    version_numbers = []
-    parsed_version = list(parse_version(long_version))
-    for item in parsed_version:
-        if not item.isdigit():
-            break
-        version_numbers.append(int(item))
-    while len(version_numbers) < 3:
-        version_numbers.append(0)
-    index = parsed_version.index(item)
-    for item in parsed_version[index:]:
-        if item.isdigit():
-            version_numbers.append(int(item))
-            break
-    return '.'.join([str(item) for item in  version_numbers])
-
-
-def change_version_in_setup_py():
-    from brownie.importing import import_string
-    long_version = import_string("{}.__version__".format(get_name())).__version__
-    short_version = shorten_version(long_version)
-    with open("setup.py") as fd:
-        setup_py = fd.read()
-    with open("setup.py", "w") as fd:
-        fd.write(setup_py.replace(long_version, short_version))
-
-
 def install_files():
     for dependency in get_dependencies():
         build_dependency(dependency)
@@ -102,7 +74,6 @@ def write_install_files():
 
 def main():
     cleanup()
-    change_version_in_setup_py()
     install_files()
     write_install_files()
 

@@ -190,8 +190,8 @@ class InfiniboxVolumeDriver(san.SanDriver):
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
 
-        data['total_capacity_gb'] = self._get_pool().get_thick_size() / GiB
-        data['free_capacity_gb'] = self._get_pool().get_free_thick_size() / GiB
+        data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
+        data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
         data['reserved_percentage'] = 0
         data['QoS_support'] = False
         self.volume_stats = data

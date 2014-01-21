@@ -244,13 +244,13 @@ class InfiniboxVolumeDriver(san.SanDriver):
         return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)
 
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
-        infinidat_volume.set_metadata("cinder_id", cinder_volume.id)
-        infinidat_volume.set_metadata("delete_parent", delete_parent)
+        infinidat_volume.set_metadata("cinder_id", str(cinder_volume.id))
+        infinidat_volume.set_metadata("delete_parent", str(delete_parent))
         self._set_basic_metadata(infinidat_volume)
 
     def _set_basic_metadata(self, infinidat_volume):
-        infinidat_volume.set_metadata("system", SYSTEM_METADATA_VALUE)
-        infinidat_volume.set_metadata("driver_version", self.VERSION)
+        infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))
+        infinidat_volume.set_metadata("driver_version", str(self.VERSION))
 
     def _assert_connector_has_wwpns(self, connector):
         if not u'wwpns' in connector or not connector[u'wwpns']:

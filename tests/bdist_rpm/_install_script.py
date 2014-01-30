@@ -2,6 +2,7 @@ import glob
 import os
 import urllib
 import shutil
+import infi.traceback
 
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
@@ -96,6 +97,7 @@ def write_install_files():
         fd.write("\n".join(sorted(set(existing_files))))
 
 
+@infi.traceback.pretty_traceback_and_exit_decorator
 def main():
     cleanup()
     install_files()

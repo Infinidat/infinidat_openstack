@@ -52,7 +52,7 @@ def build_dependency(dependency):
         urlretrieve(url, filepath)
     for fname in glob.glob(".cache/dist/{}*zip".format(dependency)):
         remove_glob(".cache/dist/{}*zip".format(dependency))
-        tgz = os.path.basename(fname)[:-10] + ".tar.gz"  # -py2.7.egg
+        tgz = os.path.basename(fname)[:-4] + ".tar.gz"
         url = "http://pypi01/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)

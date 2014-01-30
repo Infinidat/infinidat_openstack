@@ -5,6 +5,7 @@ import shutil
 
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
+EXCLUDED_PACKAGES = ("distribute")
 
 
 def get_name():
@@ -79,7 +80,7 @@ def cleanup():
 
 
 def install_files():
-    for dependency in get_dependencies():
+    for dependency in set(get_dependencies()) - set(EXCLUDED_PACKAGES):
         build_dependency(dependency)
     system(INSTALL_LINE.format("INSTALLED_FILES"))
 

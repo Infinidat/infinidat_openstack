@@ -55,3 +55,4 @@ buildout.in
 src/infinidat_openstack/__version__.py
 bootstrap.py
 .cache
+eggs

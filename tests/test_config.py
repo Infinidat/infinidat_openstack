@@ -2,6 +2,7 @@ from unittest import TestCase, SkipTest
 from infinidat_openstack import config
 from shutil import copy
 
+
 class ConfigTestCase(TestCase):
     def test_empty_config_file(self):
         with config.get_config_parser("tests/conf/empty.conf") as config_parser:

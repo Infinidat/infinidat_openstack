@@ -6,10 +6,13 @@ Usage:
     openstack-infinibox-config [options] remove <address> <pool-name>
     openstack-infinibox-config [options] enable <key>
     openstack-infinibox-config [options] disable <key>
+    openstack-infinibox-config -h | --help
+    openstack-infinibox-config -v | --version
+
 
 Options:
-    --config-file=<config-file>         cinder configuration file [default: /etc/cinder/cinder.conf]
-    --dry-run                           don't save changes
+    --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
+    --dry-run                            don't save changes
 """
 
 import docopt

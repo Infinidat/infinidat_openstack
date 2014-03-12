@@ -3,6 +3,7 @@ from infi.vendata.integration_tests import TestCase
 from infinidat_openstack import config, scripts
 from infi.execute import execute_assert_success
 from infi.pyutils.contexts import contextmanager
+from unittest import SkipTest
 
 
 @cached_function
@@ -61,9 +62,3 @@ class OpenStackTestCase(TestCase):
         yield func
         after = now()
         self.assertEquals(len(after), len(before)+diff)
-
-    def test_create_volume_in_one_pool(self):
-        with self.provisioning_pool_context() as pool:
-            with self.assert_volume_count(1) as get_diff:
-                self.get_cinder_client().volumes.create(1)# create volume via cinder
-                [volume], _ = get_diff()

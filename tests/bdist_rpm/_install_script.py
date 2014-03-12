@@ -6,7 +6,7 @@ import infi.traceback
 
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
-EXCLUDED_PACKAGES = ("distribute", "setuptools", "six", "requests")
+EXCLUDED_PACKAGES = ("distribute", "setuptools", "six", "requests", "ipython")
 
 
 def get_name():

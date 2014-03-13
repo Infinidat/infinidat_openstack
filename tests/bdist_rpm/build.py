@@ -20,8 +20,8 @@ def get_os_string():
 
 
 def get_name():
-    from infi.projector.helper.utils import open_buildout_configfile
-    with open_buildout_configfile("buildout.cfg", False) as buildout:
+    from infinidat_openstack.config import get_config_parser
+    with get_config_parser("buildout.cfg", False) as buildout:
         return buildout.get("project", "name")
 
 

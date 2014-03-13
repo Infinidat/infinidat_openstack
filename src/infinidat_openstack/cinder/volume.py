@@ -1,7 +1,12 @@
 from oslo.config import cfg
-from cinder.openstack.common import log as logging
-from cinder.volume.drivers.san import san
-from cinder import exception
+try:
+    from cinder.openstack.common import log as logging
+    from cinder.volume.drivers.san import san
+    from cinder import exception
+except:
+    from .mock import logging
+    from . import mock as san
+    from . import mock as exception
 
 from contextlib import contextmanager
 from capacity import GiB

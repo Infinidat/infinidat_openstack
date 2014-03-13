@@ -4,8 +4,8 @@ Usage:
     openstack-infinibox-config [options] list
     openstack-infinibox-config [options] set <address> <pool-name> <username> <password>
     openstack-infinibox-config [options] remove <address> <pool-name>
-    openstack-infinibox-config [options] enable <key>
-    openstack-infinibox-config [options] disable <key>
+    openstack-infinibox-config [options] enable <address> <pool-name>
+    openstack-infinibox-config [options] disable <address> <pool-name>
     openstack-infinibox-config -h | --help
     openstack-infinibox-config -v | --version
 
@@ -40,28 +40,41 @@ def system_list(config_parser):
 
 
 def main(argv=sys.argv[1:]):
-    from ..__version__ import __version__
+    from .__version__ import __version__
     from . import config, exceptions
     from json import dumps
     arguments = docopt.docopt(__doc__, argv=argv, version=__version__)
     config_file = arguments['--config-file']
     write_on_exit = not arguments.get("--dry-run") or any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
+    address, pool = arguments.get('<address>'), arguments.get('<pool-name>')
+    username, password = arguments.get('<username>'), arguments.get('<password>')
     if not os.path.exists(config_file):
-        print "configuration file %s does not exist" % config_file, sys.stderr
+        print "configuration file {0} does not exist".format(config_file), sys.stderr
         sys.exit(1)
     try:
         with config.get_config_parser(config_file, write_on_exit) as config_parser:
             if arguments['list']:
                 return system_list(config_parser)
             elif arguments['set']:
-                config.apply(config_parser, arguments['<address>'], arguments['<pool-name>'],
-                             arguments['<username>'], argumentsp['<password>'])
+                config.apply(config_parser, address, pool, username, password)
             elif arguments['remove']:
-                raise NotImplementedError()
+                system = config.get_system(config_parser, address, pool)
+                if system is None:
+                    return
+                config.diable(config_parser, system['<key>'])
+                config.remove(config_parser, system['<key>'])
             elif arguments['enable']:
-                config.enable(config_parser, arguments['<key>'])
+                system = config.get_system(config_parser, address, pool)
+                if system is None:
+                    print "failed to enable {0}/{1}, not found".format(address, pool), sys.stderr
+                    sys.exit(1)
+                config.enable(config_parser, system['<key>'])
             elif arguments['disable']:
-                config.disable(config_parser, arguments['<key>'])
+                system = config.get_system(config_parser, address, pool)
+                if system is None:
+                    print "failed to disable {0}/{1}, not found".format(address, pool), sys.stderr
+                    sys.exit(1)
+                config.disable(config_parser, system['<key>'])
     except exceptions.UserException, error:
         print error.message
         sys.exit(1)

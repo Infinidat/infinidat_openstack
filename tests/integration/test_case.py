@@ -1,21 +1,29 @@
+from os import path
+from time import sleep
 from uuid import uuid4
 from mock import MagicMock
 from munch import Munch
 from unittest import SkipTest
-from infi.execute import execute_assert_success
+from infi.execute import execute_assert_success, execute
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
+from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
-from infinidat_openstack import config, scripts
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
+from infinidat_openstack import config, scripts
 
+
+CINDER_LOG_FILE = "/var/log/cinder/volume.log"
 
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""
-    from infi.execute import execute
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
+    execute(["yum", "reinstall", "-y", "python-setuptools"])
+    execute(["yum", "install",   "-y", "python-devel"])
+    execute(["easy_install-2.6", "-U", "requests"])
+    execute(["python2.6", "setup.py", "install"])
 
 
 def get_cinder_client(host="localhost"):
@@ -24,7 +32,17 @@ def get_cinder_client(host="localhost"):
 
 
 def restart_cinder():
-    execute_assert_success(["openstack-service", "restart", "openstack-cinder-volume"])
+    execute_assert_success(["openstack-service", "restart", "cinder-volume"])
+    sleep(10) # give time for the volume drive to come up, no APIs to checking this
+
+
+def get_cinder_log():
+    with open(CINDER_LOG_FILE) as fd:
+        return fd.read()
+
+
+class NotReadyException(Exception):
+    pass
 
 
 class OpenStackTestCase(TestCase):
@@ -55,17 +73,30 @@ class OpenStackTestCase(TestCase):
         after = now()
         self.assertEquals(len(after), len(before)+diff)
 
+    def wait_for_object_creation(self, cinder_object, timeout=30):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            if cinder_object.status in ("creating", ):
+                raise NotReadyException(cinder_object.id, cinder_object.status)
+        poll()
+
+    def create_volume(self, size_in_gb, volume_type=None, wait_for_it=None):
+        cinder_volume = self.get_cinder_client().volumes.create(size_in_gb, volume_type)
+        self.wait_for_object_creation(cinder_volume)
+        self.assertIn(cinder_volume.status, ("available", ))
+
 
 class RealTestCaseMixin(object):
     get_cinder_client = staticmethod(get_cinder_client)
-    config = config
-    scripts = scripts
 
     @classmethod
     def setup_host(cls):
-        from os import path
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
+        with config.get_config_parser(write_on_exit=True) as config_parser:
+            config.set_enabled_backends(config_parser, [])
+            for section in config.get_infinibox_sections(config_parser):
+                config_parser.remove_section(section)
         prepare_host()
 
     @classmethod
@@ -93,16 +124,19 @@ class RealTestCaseMixin(object):
 
     @contextmanager
     def cinder_context(self, infinipy, pool, volume_type=None):
-        with self.config.get_config_parser(write_on_exit=True) as config_parser:
-            key = self.config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
-            self.config.enable(config_parser, key)
-            self.scripts.restart_cinder()
+        with config.get_config_parser(write_on_exit=True) as config_parser:
+            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
+            config.enable(config_parser, key)
+        restart_cinder()
+        before = get_cinder_log()
         try:
             yield
         finally:
-            with self.config.get_config_parser(write_on_exit=True) as config_parser:
-                self.config.disable(config_parser, key)
-                self.scripts.restart_cinder()
+            after = get_cinder_log()
+            print after.replace(before, '')
+            with config.get_config_parser(write_on_exit=True) as config_parser:
+                config.disable(config_parser, key)
+            restart_cinder()
 
 
 class MockTestCaseMixin(object):
@@ -149,8 +183,9 @@ class MockTestCaseMixin(object):
     @classmethod
     def apply_cinder_patches(cls):
         def create(size, volume_type=None):
-            cinder_volume = Munch(size=size, id=str(uuid4()))
-            return cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
+            cinder_volume = Munch(size=size, id=str(uuid4()), status='available')
+            cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
+            return cinder_volume
 
         cls.get_cinder_client().volumes.create.side_effect = create
 

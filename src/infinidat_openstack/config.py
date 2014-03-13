@@ -50,13 +50,23 @@ def get_systems(config_parser):
             for key, value in get_infinibox_sections(config_parser).items()]
 
 
+def get_system(config_parser, address, pool):
+    for system in get_systems(config_parser):
+        if system['address'] == address and system['pool'] == pool:
+            return system
+
+
+def set_enabled_backends(config_parser, enabled_backends):
+    config_parser.set(ENABLED_BACKENDS['section'],ENABLED_BACKENDS['option'], " ".join(enabled_backends))
+
+
 def update_enabled_backends(config_parser, key, update_method):
     assert update_method in ('add', 'discard')
     if key not in get_infinibox_sections(config_parser):
         raise exceptions.UserException("cannot enable non-existing {0}".format(key))
     keys = set(get_enabled_backends(config_parser))
     getattr(keys, update_method)(key)
-    config_parser.set(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option'], " ".join(sorted(list(keys))))
+    set_enabled_backends(config_parser, sorted(list(keys)))
 
 
 def enable(config_parser, key):
@@ -67,8 +77,13 @@ def enable(config_parser, key):
 
 def disable(config_parser, key):
     if key not in get_infinibox_sections(config_parser):
-        raise exceptions.UserException("cannot disabl non-existing {0}".format(key))
+        raise exceptions.UserException("cannot disable non-existing {0}".format(key))
     update_enabled_backends(config_parser, key, "discard")
+
+
+def remove(config_parser, key):
+    if config_parser.has_section(key):
+        config_parser.remove_section(key)
 
 
 def apply(config_parser, address, pool, username, password):
@@ -84,5 +99,6 @@ def apply(config_parser, address, pool, username, password):
     for setting in SETTINGS:
         config_parser.set(key, setting[1], locals()[setting[0]])
     if enabled:
-        return enable(config_parser, key)
+        enable(config_parser, key)
+        key
     return key

@@ -14,3 +14,7 @@ class CinderException(Exception):
 class InvalidInput(Exception):
     def __init__(self, reason):
         super(InvalidInput, self).__init__(self, reason)
+
+
+def translate(message):
+    return message

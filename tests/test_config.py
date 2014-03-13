@@ -21,7 +21,10 @@ class ConfigTestCase(TestCase):
         copy(src, dst)
         with config.get_config_parser("tests/conf/adding_box.conf", True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            config.apply(config_parser, **box)
+            key = config.apply(config_parser, **box)
+            config.disable(config_parser, key)
+            config.enable(config_parser, key)
+
         with config.get_config_parser("tests/conf/adding_box.conf") as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), ["1.2.3.4/pool"])
 

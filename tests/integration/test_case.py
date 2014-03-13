@@ -73,16 +73,18 @@ class OpenStackTestCase(TestCase):
         after = now()
         self.assertEquals(len(after), len(before)+diff)
 
-    def wait_for_object_creation(self, cinder_object, timeout=30):
+    def wait_for_object_creation(self, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
             if cinder_object.status in ("creating", ):
+                cinder_object.get()
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
-    def create_volume(self, size_in_gb, volume_type=None, wait_for_it=None):
+    def create_volume(self, size_in_gb, volume_type=None, timeout=5):
         cinder_volume = self.get_cinder_client().volumes.create(size_in_gb, volume_type)
-        self.wait_for_object_creation(cinder_volume)
+        if timeout:
+            self.wait_for_object_creation(cinder_volume, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
 
 

@@ -1,7 +1,7 @@
 import test_case
 from infi.unittest import parameters
 
-class ProvisioningTestCase(test_case.OpenStackTestCase):
+class ProvisioningTestsMixin(object):
     def test_create_volume_in_one_pool(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count(1) as get_diff:
@@ -44,3 +44,11 @@ class ProvisioningTestCase(test_case.OpenStackTestCase):
 
     def test_volume_extend(self):
         raise test_case.SkipTest("not implemented")
+
+
+class ProvisioningTestsMixin_Mock(test_case.OpenStackTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
+    pass
+
+
+class ProvisioningTestsMixin_Real(test_case.OpenStackTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+    pass

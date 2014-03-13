@@ -53,7 +53,7 @@ def get_systems(config_parser):
 def update_enabled_backends(config_parser, key, update_method):
     assert update_method in ('add', 'discard')
     if key not in get_infinibox_sections(config_parser):
-        raise UserException("cannot enable non-existing {0}".format(key))
+        raise exceptions.UserException("cannot enable non-existing {0}".format(key))
     keys = set(get_enabled_backends(config_parser))
     getattr(keys, update_method)(key)
     config_parser.set(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option'], " ".join(sorted(list(keys))))
@@ -61,13 +61,13 @@ def update_enabled_backends(config_parser, key, update_method):
 
 def enable(config_parser, key):
     if key not in get_infinibox_sections(config_parser):
-        raise UserException("cannot enable non-existing {0}".format(key))
+        raise exceptions.UserException("cannot enable non-existing {0}".format(key))
     update_enabled_backends(config_parser, key, "add")
 
 
 def disable(config_parser, key):
     if key not in get_infinibox_sections(config_parser):
-        raise UserException("cannot disabl non-existing {0}".format(key))
+        raise exceptions.UserException("cannot disabl non-existing {0}".format(key))
     update_enabled_backends(config_parser, key, "discard")
 
 

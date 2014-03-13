@@ -10,3 +10,7 @@ class SanDriver(object):
 class CinderException(Exception):
     pass
 
+
+class InvalidInput(Exception):
+    def __init__(self, reason):
+        super(InvalidInput, self).__init__(self, reason)

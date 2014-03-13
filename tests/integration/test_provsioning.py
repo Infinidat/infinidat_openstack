@@ -5,7 +5,7 @@ class ProvisioningTestsMixin(object):
     def test_create_volume_in_one_pool(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count(1) as get_diff:
-                self.get_cinder_client().volumes.create(1)# create volume via cinder
+                self.get_cinder_client().volumes.create(1) # create volume via cinder
                 [volume], _ = get_diff()
 
     @parameters.iterate("volume_count", [2, 5, 10])

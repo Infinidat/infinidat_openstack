@@ -1,4 +1,6 @@
+from uuid import uuid4
 from mock import MagicMock
+from munch import Munch
 from unittest import SkipTest
 from infi.execute import execute_assert_success
 from infi.pyutils.lazy import cached_function
@@ -6,7 +8,7 @@ from infi.pyutils.contexts import contextmanager
 from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
 from infinidat_openstack import config, scripts
-from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver
+from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 
 
 @cached_function
@@ -38,25 +40,17 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self):
+    def provisioning_pool_context(self, volume_type=None):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        with self.config.get_config_parser(write_on_exit=True) as config_parser:
-            key = self.config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
-            self.config.enable(config_parser, key)
-            self.scripts.restart_cinder()
-        try:
+        with self.cinder_context(self.infinipy, pool, volume_type):
             yield pool
-        finally:
-            with self.config.get_config_parser(write_on_exit=True) as config_parser:
-                self.config.disable(config_parser, key)
-                self.scripts.restart_cinder()
 
     @contextmanager
     def assert_volume_count(self, diff):
         before = self.infinipy.get_volumes()
         now = lambda: self.infinipy.get_volumes()
-        func = lambda: [volume for volume in now() if volume not in before], \
-                       [volume for volume in before if volume not in now()]
+        func = lambda: ([volume for volume in now() if volume not in before], \
+                        [volume for volume in before if volume not in now()])
         yield func
         after = now()
         self.assertEquals(len(after), len(before)+diff)
@@ -97,11 +91,23 @@ class RealTestCaseMixin(object):
         except:
             pass
 
+    @contextmanager
+    def cinder_context(self, infinipy, pool, volume_type=None):
+        with self.config.get_config_parser(write_on_exit=True) as config_parser:
+            key = self.config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
+            self.config.enable(config_parser, key)
+            self.scripts.restart_cinder()
+        try:
+            yield
+        finally:
+            with self.config.get_config_parser(write_on_exit=True) as config_parser:
+                self.config.disable(config_parser, key)
+                self.scripts.restart_cinder()
+
 
 class MockTestCaseMixin(object):
     get_cinder_client = MagicMock()
-    config = MagicMock()
-    scripts = MagicMock()
+    volume_driver_by_type = {}
 
     @classmethod
     def setup_host(cls):
@@ -109,11 +115,15 @@ class MockTestCaseMixin(object):
         cls.smock = HostMock()
         cls.smock.get_inventory().add_initiator()
         cls.smock_context = cls.smock.__enter__()
-        cls.volume_driver = InfiniboxVolumeDriver(configuration=MagicMock())
+        configuration = Munch()
 
     @classmethod
     def teardown_host(cls):
         cls.smock.__exit__(None, None, None)
+
+    @classmethod
+    def _append_config_values(cls, values):
+        pass
 
     @classmethod
     def setup_infinibox(cls):
@@ -122,12 +132,27 @@ class MockTestCaseMixin(object):
         cls.apply_cinder_patches()
 
     @classmethod
+    @contextmanager
+    def cinder_context(cls, infinipy, pool, volume_type=None):
+        volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
+        volume_driver_config.update(san_ip=infinipy.get_hostname(),
+                                    infinidat_pool=pool.get_name(),
+                                    san_login="infinidat", san_password="123456")
+        volume_driver_config.append_config_values = lambda values: None
+        volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
+        volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
+        volume_drive_context = Munch()
+        volume_driver.do_setup(cls.cinder_context)
+        cls.volume_driver_by_type[volume_type] = volume_driver
+        yield
+
+    @classmethod
     def apply_cinder_patches(cls):
-        def create(*args, **kwargs):
-            raise NotImplementedError()
+        def create(size, volume_type=None):
+            cinder_volume = Munch(size=size, id=str(uuid4()))
+            return cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
 
         cls.get_cinder_client().volumes.create.side_effect = create
-
 
     @classmethod
     def teardown_infinibox(cls):

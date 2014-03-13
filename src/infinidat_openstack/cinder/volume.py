@@ -1,7 +1,13 @@
 from oslo.config import cfg
-from cinder.openstack.common import log as logging
-from cinder.volume.drivers.san import san
-from cinder import exception
+try:
+    from cinder.openstack.common import log as logging
+    from cinder.openstack.common.gettextutils import _ as translate
+    from cinder.volume.drivers.san import san
+    from cinder import exception
+except ImportError:
+    from .mock import logging, translate
+    from . import mock as san
+    from . import mock as exception
 
 from contextlib import contextmanager
 from capacity import GiB
@@ -63,11 +69,11 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def do_setup(self, context):
         for key in ('infinidat_provision_type', 'infinidat_pool', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
-                raise exception.InvalidInput(reason=_("{0} must be set".format(key)))
+                raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
 
         provision_type = self.configuration.infinidat_provision_type
         if provision_type.upper() not in ('THICK', 'THIN'):
-            raise exception.InvalidInput(reason=_("infinidat_provision_type must be THICK or THIN"))
+            raise exception.InvalidInput(reason=translate("infinidat_provision_type must be THICK or THIN"))
 
         from infinipy import System
         self.system = System(self.configuration.san_ip,
@@ -127,14 +133,14 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         if cinder_volume.size * GiB != infinidat_snapshot.get_size():
-            raise exception.InvalidInput(reason=_("cannot create a volume with size different than its snapshot"))
+            raise exception.InvalidInput(reason=translate("cannot create a volume with size different than its snapshot"))
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
     @_infinipy_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
         if tgt_cinder_volume.size != src_cinder_volume:
-            raise exception.InvalidInput(reason=_("cannot create a cloned volume with size different from source"))
+            raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.
         snapshot = src_infinidat_volume.create_snapshot(name=self._create_snapshot_name(src_cinder_volume) + "-internal")
@@ -153,9 +159,9 @@ class InfiniboxVolumeDriver(san.SanDriver):
         if infinidat_volume.get_size() != new_size_in_bytes:
             if not infinidat_volume.is_master_volume():
                 # Current limitation in Infinibox - cannot resize non-master volumes
-                raise exception.InvalidInput(reason=_("cannot resize volume: only master volumes can be resized"))
+                raise exception.InvalidInput(reason=translate("cannot resize volume: only master volumes can be resized"))
             if infinidat_volume.get_size() < new_size_in_bytes:
-                raise exception.InvalidInput(reason=_("cannot resize volume: new size must be greater or equal to current size"))
+                raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)
 
     @_infinipy_to_cinder_exceptions
@@ -165,7 +171,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
     @_infinipy_to_cinder_exceptions
     def create_snapshot(self, cinder_snapshot):
         infinidat_volume = self._find_volume(cinder_snapshot.volume)
-        infinidat_snapshot = infinidat_volume.create_snapshot(name=self._create_snapshot_name(cinder_snapshot))
+        infinidat_snapshot = infinidat_volume.create_snapshot(name=translate(self._create_snapshot_name(cinder_snapshot)))
         self._set_volume_or_snapshot_metadata(infinidat_snapshot, cinder_snapshot)
 
     @_infinipy_to_cinder_exceptions
@@ -190,8 +196,8 @@ class InfiniboxVolumeDriver(san.SanDriver):
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
 
-        data['total_capacity_gb'] = self._get_pool().get_thick_size() / GiB
-        data['free_capacity_gb'] = self._get_pool().get_free_thick_size() / GiB
+        data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
+        data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
         data['reserved_percentage'] = 0
         data['QoS_support'] = False
         self.volume_stats = data
@@ -200,7 +206,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
         if not self.pool:
             pools = self.system.objects.Pool.find(name=self.configuration.infinidat_pool)
             if not pools:
-                raise exception.Invalid(_("pool {0} not found".format(self.configuration.infinidat_pool)))
+                raise exception.InvalidInput(translate("pool {0} not found".format(self.configuration.infinidat_pool)))
             self.pool = pools[0]
         return self.pool
 
@@ -244,15 +250,15 @@ class InfiniboxVolumeDriver(san.SanDriver):
         return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)
 
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
-        infinidat_volume.set_metadata("cinder_id", cinder_volume.id)
-        infinidat_volume.set_metadata("delete_parent", delete_parent)
+        infinidat_volume.set_metadata("cinder_id", str(cinder_volume.id))
+        infinidat_volume.set_metadata("delete_parent", str(delete_parent))
         self._set_basic_metadata(infinidat_volume)
 
     def _set_basic_metadata(self, infinidat_volume):
-        infinidat_volume.set_metadata("system", SYSTEM_METADATA_VALUE)
-        infinidat_volume.set_metadata("driver_version", self.VERSION)
+        infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))
+        infinidat_volume.set_metadata("driver_version", str(self.VERSION))
 
     def _assert_connector_has_wwpns(self, connector):
         if not u'wwpns' in connector or not connector[u'wwpns']:
             LOG.warn("no WWPN was provided in connector: {0!r}".format(connector))
-            raise exception.Invalid(_('can map a volume only to WWPN, but no WWPN was received'))
+            raise exception.Invalid(translate('can map a volume only to WWPN, but no WWPN was received'))

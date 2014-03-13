@@ -20,8 +20,8 @@ def get_os_string():
 
 
 def get_name():
-    from infi.projector.helper.utils import open_buildout_configfile
-    with open_buildout_configfile("buildout.cfg", False) as buildout:
+    from infinidat_openstack.config import get_config_parser
+    with get_config_parser("buildout.cfg", False) as buildout:
         return buildout.get("project", "name")
 
 
@@ -60,7 +60,9 @@ def main():
     ARCH = "x86_64" if sys.maxsize > 2**32 else "i686"
     PROJECTDIR = os.path.abspath(os.path.curdir)
 
-    SCRIPT = """PROJECTDIR={0} PYTHON={1} {1} setup.py bdist_rpm --binary-only --force-arch {2} --requires python-setuptools \
+    SCRIPT = """PROJECTDIR={0} PYTHON={1} {1} setup.py bdist_rpm --binary-only --force-arch {2} \
+    --requires python-setuptools --requires python-six --requires python-requests \
+    --requires python-bson --requires python-pymongo \
     --install-script=tests/bdist_rpm/_install_script.sh \
     --build-script=tests/bdist_rpm/_build_script.sh \
     --vendor Infinidat --packager Infinidat """

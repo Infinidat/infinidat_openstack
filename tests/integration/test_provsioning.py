@@ -24,14 +24,14 @@ class ProvisioningTestsMixin(object):
                 [infinibox_volume], _ = get_diff()
                 self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
 
-    # @parameters.iterate("volume_count", [2, 5, 10])
-    # def test_create_multiple_volumes_in_one_pool(self, volume_count):
-    #     with self.provisioning_pool_context() as pool:
-    #         with self.assert_volume_count(volume_count) as get_diff:
-    #             cinder_volumes = [self.create_volume(1) for volume in range(volume_count)]
-    #             infinibox_volumes, _ = get_diff()
-    #             self.assertEquals([item.id for item in cinder_volumes],
-    #                               [item.get_metadata("cinder_id") for item in infinibox_volumes])
+    @parameters.iterate("volume_count", [2, 5, 10])
+    def test_create_multiple_volumes_in_one_pool(self, volume_count):
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count(volume_count) as get_diff:
+                cinder_volumes = [self.create_volume(1) for volume in range(volume_count)]
+                infinibox_volumes, _ = get_diff()
+                self.assertEquals([item.id for item in cinder_volumes],
+                                  [item.get_metadata("cinder_id") for item in infinibox_volumes])
 
     def test_create_volumes_from_different_pools(self):
         with self.provisioning_pool_context() as first:

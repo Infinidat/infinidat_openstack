@@ -61,7 +61,7 @@ def get_system(config_parser, address, pool_id):
 
 
 def set_enabled_backends(config_parser, enabled_backends):
-    config_parser.set(ENABLED_BACKENDS['section'],ENABLED_BACKENDS['option'], " ".join(enabled_backends))
+    config_parser.set(ENABLED_BACKENDS['section'],ENABLED_BACKENDS['option'], ",".join(enabled_backends))
 
 
 def update_enabled_backends(config_parser, key, update_method):

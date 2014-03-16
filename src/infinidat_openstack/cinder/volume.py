@@ -4,19 +4,20 @@ try:
     from cinder.openstack.common.gettextutils import _ as translate
     from cinder.volume.drivers.san import san
     from cinder import exception
-except ImportError:
+except (ImportError, NameError):  # importing with just python hits NameErorr from the san module, the _ trick
     from .mock import logging, translate
     from . import mock as san
     from . import mock as exception
 
 from contextlib import contextmanager
+from functools import wraps
 from capacity import GiB
 from infi.pyutils.decorators import wraps
 
 LOG = logging.getLogger(__name__)
 
 volume_opts = [
-    cfg.StrOpt('infinidat_pool', help='Name of the pool from which volumes are allocated', default=None),
+    cfg.StrOpt('infinidat_pool_id', help='id the pool from which volumes are allocated', default=None),
     cfg.StrOpt('infinidat_provision_type', help='Provisioning type (thick or thin)', default='thick'),
     cfg.StrOpt('infinidat_volume_name_prefix', help='Cinder volume name prefix in Infinibox', default='openstack-vol'),
     cfg.StrOpt('infinidat_snapshot_name_prefix', help='Cinder snapshot name prefix in Infinibox',
@@ -47,12 +48,22 @@ def _infinipy_to_cinder_exceptions_context():
         raise InfiniboxException(str(e))
 
 
+def _log_decorator(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        LOG.info("--> {0}({1})".format(func.__name__, '...'))
+        return_value = func(self, *args, **kwargs)
+        LOG.info("<-- {0!r}".format(return_value))
+        return return_value
+    return wrapper
+
+
 def _infinipy_to_cinder_exceptions(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         with _infinipy_to_cinder_exceptions_context():
             return f(*args, **kwargs)
-    return wrapper
+    return _log_decorator(wrapper)
 
 
 class InfiniboxVolumeDriver(san.SanDriver):
@@ -67,7 +78,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
-        for key in ('infinidat_provision_type', 'infinidat_pool', 'san_login', 'san_password'):
+        for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
                 raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
 
@@ -189,9 +200,8 @@ class InfiniboxVolumeDriver(san.SanDriver):
         """Retrieve stats info from volume group."""
 
         data = {}
-        backend_name = self.configuration.safe_get('volume_backend_name')
-        system_and_pool_name = "{0}-{1}".format(self.system.get_name(), self._get_pool().get_name())
-        data["volume_backend_name"] = backend_name or system_and_pool_name
+        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self._get_pool().get_id())
+        data["volume_backend_name"] = system_and_pool_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
@@ -204,9 +214,9 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     def _get_pool(self):
         if not self.pool:
-            pools = self.system.objects.Pool.find(name=self.configuration.infinidat_pool)
+            pools = self.system.objects.Pool.find(id=int(self.configuration.infinidat_pool_id))
             if not pools:
-                raise exception.InvalidInput(translate("pool {0} not found".format(self.configuration.infinidat_pool)))
+                raise exception.InvalidInput(translate("pool {0} not found".format(int(self.configuration.infinidat_pool_id))))
             self.pool = pools[0]
         return self.pool
 
@@ -252,6 +262,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
         infinidat_volume.set_metadata("cinder_id", str(cinder_volume.id))
         infinidat_volume.set_metadata("delete_parent", str(delete_parent))
+        infinidat_volume.set_metadata("cinder_display_name", str(cinder_volume.display_name))
         self._set_basic_metadata(infinidat_volume)
 
     def _set_basic_metadata(self, infinidat_volume):

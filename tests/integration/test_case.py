@@ -19,7 +19,8 @@ CINDER_LOG_FILE = "/var/log/cinder/volume.log"
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""
-    execute(["bin/infinihost", "settings", "check", "--auto-fix"])
+    # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
+    # execute(["bin/infinihost", "settings", "check", "--auto-fix"])
     execute(["yum", "reinstall", "-y", "python-setuptools"])
     execute(["yum", "install",   "-y", "python-devel"])
     execute(["easy_install-2.6", "-U", "requests"])
@@ -58,9 +59,9 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self, volume_type=None):
+    def provisioning_pool_context(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        with self.cinder_context(self.infinipy, pool, volume_type):
+        with self.cinder_context(self.infinipy, pool):
             yield pool
 
     @contextmanager
@@ -81,11 +82,13 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
-    def create_volume(self, size_in_gb, volume_type=None, timeout=5):
-        cinder_volume = self.get_cinder_client().volumes.create(size_in_gb, volume_type)
+    def create_volume(self, size_in_gb, pool=None, timeout=30):
+        volume_type = None if pool is None else "{}/{}".format(self.infinipy.get_name(), pool.get_name())
+        cinder_volume = self.get_cinder_client().volumes.create(size_in_gb, volume_type=volume_type)
         if timeout:
             self.wait_for_object_creation(cinder_volume, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
+        return cinder_volume
 
 
 class RealTestCaseMixin(object):
@@ -110,12 +113,11 @@ class RealTestCaseMixin(object):
         cls.system = cls.system_factory.allocate_infinidat_system()
         cls.infinipy = cls.system.get_infinipy()
         cls.infinipy.purge()
-        try:
-            cls.zoning.purge_all_related_zones()
-            cls.zoning.zone_host_with_system__full_mesh(cls.system)
-        except:
-            cls.system.release()
-            raise
+
+    @classmethod
+    def zone_localhost_with_infinibox(cls):
+        cls.zoning.purge_all_related_zones()
+        cls.zoning.zone_host_with_system__single_path(cls.system)
 
     @classmethod
     def teardown_infinibox(cls):
@@ -125,10 +127,11 @@ class RealTestCaseMixin(object):
             pass
 
     @contextmanager
-    def cinder_context(self, infinipy, pool, volume_type=None):
+    def cinder_context(self, infinipy, pool):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
             config.enable(config_parser, key)
+            config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
         before = get_cinder_log()
         try:
@@ -137,6 +140,7 @@ class RealTestCaseMixin(object):
             after = get_cinder_log()
             print after.replace(before, '')
             with config.get_config_parser(write_on_exit=True) as config_parser:
+                # config.delete_volume_type(self.get_cinder_client(), key)
                 config.disable(config_parser, key)
             restart_cinder()
 
@@ -164,32 +168,49 @@ class MockTestCaseMixin(object):
     @classmethod
     def setup_infinibox(cls):
         cls.infinipy = cls.smock.get_inventory().add_infinibox()
-        cls.smock.get_inventory().zone_with_system__full_mesh(cls.infinipy)
         cls.apply_cinder_patches()
 
     @classmethod
+    def zone_localhost_with_infinibox(self):
+        cls.smock.get_inventory().zone_with_system__full_mesh(cls.infinipy)
+
+    @classmethod
     @contextmanager
-    def cinder_context(cls, infinipy, pool, volume_type=None):
+    def cinder_context(cls, infinipy, pool):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
         volume_driver_config.update(san_ip=infinipy.get_hostname(),
-                                    infinidat_pool=pool.get_name(),
+                                    infinidat_pool_id=pool.get_id(),
                                     san_login="infinidat", san_password="123456")
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
         volume_drive_context = Munch()
         volume_driver.do_setup(cls.cinder_context)
+        volume_type = "{}/{}".format(infinipy.get_name(), pool.get_name())
         cls.volume_driver_by_type[volume_type] = volume_driver
         yield
 
     @classmethod
     def apply_cinder_patches(cls):
         def create(size, volume_type=None):
-            cinder_volume = Munch(size=size, id=str(uuid4()), status='available')
-            cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
+            cinder_volume = Munch(size=size, id=str(uuid4()), status='available', display_name=None)
+            if volume_type:
+                cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
+            else:
+                cls.volume_driver_by_type.values()[0].create_volume(cinder_volume)
             return cinder_volume
 
+        def volume_types__findall():
+            volume_types = []
+            for key, value in cls.volume_driver_by_type.items():
+                mock = MagicMock()
+                mock.name = key
+                mock.get_keys.return_value = dict(volume_backend_name=value.get_volume_stats()["volume_backend_name"])
+                volume_types.append(mock)
+            return volume_types
+
         cls.get_cinder_client().volumes.create.side_effect = create
+        cls.get_cinder_client().volume_types.findall = volume_types__findall
 
     @classmethod
     def teardown_infinibox(cls):

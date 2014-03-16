@@ -63,6 +63,8 @@ def main():
     SCRIPT = """PROJECTDIR={0} PYTHON={1} {1} setup.py bdist_rpm --binary-only --force-arch {2} \
     --requires python-setuptools --requires python-six --requires python-requests \
     --requires python-bson --requires python-pymongo \
+    --requires python-cinderclient --requires python-simplejson --requires python-pbr \
+    --requires python-pip --requires python-babel \
     --install-script=tests/bdist_rpm/_install_script.sh \
     --build-script=tests/bdist_rpm/_build_script.sh \
     --vendor Infinidat --packager Infinidat """
@@ -71,6 +73,8 @@ def main():
 
     os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
     for filename in glob.glob("dist/*rpm"):
+        if get_os_string() in filename:
+            continue
         new = filename.replace(filename[filename.rindex('-'):], "-{}.rpm".format(get_os_string()))
         os.rename(filename, new)
 

@@ -37,18 +37,16 @@ class ProvisioningTestsMixin(object):
 
     def test_volume_mapping(self):
         from infi.storagemodel import get_storage_model
-        from infi.storagemodel.predicates import ScsiDevicesAreReady
-        from infi.storagemodel.vendor.infinidat.predicates import InfinidatVolumeExists
-        from infi.storagemodel.vendor.infinidat.shortcuts import get_infinidat_native_multipath_block_devices
+        from infi.storagemodel.vendor.infinidat.predicates import InfinidatVolumeExists, InfinidatVolumeDoesNotExist
         self.zone_localhost_with_infinibox()
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
+                    predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
                     with self.cinder_mapping_context(cinder_volume):
-                        predicate = InfinidatVolumeExists(self.infinipy.get_serial(), infinibox_volume.get_id())
-                        get_storage_model().rescan_and_wait_for(predicate)
-                    get_storage_model().rescan_and_wait_for(ScsiDevicesAreReady())
+                        get_storage_model().rescan_and_wait_for(InfinidatVolumeExists(*predicate_args))
+                    get_storage_model().rescan_and_wait_for(InfinidatVolumeDoesNotExist(*predicate_args))
 
     def test_create_snapshot(self):
         with self.provisioning_pool_context() as pool:

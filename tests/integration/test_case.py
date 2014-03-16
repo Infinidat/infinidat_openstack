@@ -90,6 +90,12 @@ class OpenStackTestCase(TestCase):
         self.assertIn(cinder_volume.status, ("available", ))
         return cinder_volume
 
+    @contextmanager
+    def cinder_volume_context(self, size_in_gb, pool=None, timeout=30):
+        cinder_volume = self.create_volume(size_in_gb, pool, timeout)
+        yield cinder_volume
+        self.get_cinder_client().volume.delete(cinder_volume)
+
 
 class RealTestCaseMixin(object):
     get_cinder_client = staticmethod(get_cinder_client)

@@ -13,16 +13,16 @@ class ProvisioningTestsMixin(object):
     def test_create_volume_in_one_pool(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count(1) as get_diff:
-                cinder_volume = self.create_volume(1)
-                [infinibox_volume], _ = get_diff()
-                self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
+                with self.cinder_volume_context(1) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
 
     def test_create_volume_in_one_pool__explicit_volume_type(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count(1) as get_diff:
-                cinder_volume = self.create_volume(1, pool)
-                [infinibox_volume], _ = get_diff()
-                self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
+                with self.cinder_volume_context(1) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
 
     @parameters.iterate("volume_count", [2, 5, 10])
     def test_create_multiple_volumes_in_one_pool(self, volume_count):
@@ -32,17 +32,14 @@ class ProvisioningTestsMixin(object):
                 infinibox_volumes, _ = get_diff()
                 self.assertEquals([item.id for item in cinder_volumes],
                                   [item.get_metadata("cinder_id") for item in infinibox_volumes])
+                [self.get_cinder_client().volumes.delete(item) for item in cinder_volumes]
 
     def test_create_volumes_from_different_pools(self):
         with self.provisioning_pool_context() as first:
             with self.provisioning_pool_context() as second:
-                self.create_volume(1, first)
-                self.create_volume(1, second)
-                self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
-                self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
-
-    def test_volume_mapping(self):
-        raise test_case.SkipTest("not implemented")
+                with self.cinder_volume_context(1, first), self.cinder_volume_context(1, second):
+                    self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
+                    self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
 
     def test_create_snapshot(self):
         raise test_case.SkipTest("not implemented")

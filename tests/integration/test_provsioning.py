@@ -25,7 +25,7 @@ class ProvisioningTestsMixin(object):
                     [infinibox_volume], _ = get_diff()
                     self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
 
-    @parameters.iterate("volume_count", [2, 5, 10])
+    @parameters.iterate("volume_count", [2, 5])
     def test_create_multiple_volumes_in_one_pool(self, volume_count):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:

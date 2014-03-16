@@ -193,7 +193,8 @@ class RealTestCaseMixin(object):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
             config.disable(config_parser, key)
-            restart_cinder()
+            config.remove(config_parser, key)
+        restart_cinder()
 
 
 class MockTestCaseMixin(object):

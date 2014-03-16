@@ -146,14 +146,28 @@ class RealTestCaseMixin(object):
     get_cinder_client = staticmethod(get_cinder_client)
 
     @classmethod
+    def cleanup_infiniboxes_from_cinder(cls):
+        def cleanup_volume_types():
+            cinder_client = cls.get_cinder_client()
+            for volume_type in cinder_client.volume_types.findall():
+                cinder_client.volume_types.delete(volume_type)
+
+        def cleanup_volume_backends():
+            with config.get_config_parser(write_on_exit=True) as config_parser:
+                config.set_enabled_backends(config_parser, [])
+                for section in config.get_infinibox_sections(config_parser):
+                    config_parser.remove_section(section)
+            restart_cinder()
+
+        cleanup_volume_types()
+        cleanup_volume_backends()
+
+    @classmethod
     def setup_host(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
-        with config.get_config_parser(write_on_exit=True) as config_parser:
-            config.set_enabled_backends(config_parser, [])
-            for section in config.get_infinibox_sections(config_parser):
-                config_parser.remove_section(section)
         prepare_host()
+        cls.cleanup_infiniboxes_from_cinder()
 
     @classmethod
     def teardown_host(cls):

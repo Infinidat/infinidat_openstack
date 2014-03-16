@@ -14,14 +14,7 @@ class ProvisioningTestsMixin(object):
     def test_create_volume_in_one_pool(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
-                with self.cinder_volume_context(1) as cinder_volume:
-                    [infinibox_volume], _ = get_diff()
-                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
-
-    def test_create_volume_in_one_pool__explicit_volume_type(self):
-        with self.provisioning_pool_context() as pool:
-            with self.assert_volume_count() as get_diff:
-                with self.cinder_volume_context(1) as cinder_volume:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
                     self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
 
@@ -29,7 +22,7 @@ class ProvisioningTestsMixin(object):
     def test_create_multiple_volumes_in_one_pool(self, volume_count):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
-                cinder_volumes = [self.create_volume(1) for volume in range(volume_count)]
+                cinder_volumes = [self.create_volume(1, pool=pool) for volume in range(volume_count)]
                 infinibox_volumes, _ = get_diff()
                 self.assertEquals([item.id for item in cinder_volumes],
                                   [item.get_metadata("cinder_id") for item in infinibox_volumes])
@@ -38,7 +31,7 @@ class ProvisioningTestsMixin(object):
     def test_create_volumes_from_different_pools(self):
         with self.provisioning_pool_context() as first:
             with self.provisioning_pool_context() as second:
-                with self.cinder_volume_context(1, first), self.cinder_volume_context(1, second):
+                with self.cinder_volume_context(1, pool=first), self.cinder_volume_context(1, pool=second):
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
 
@@ -49,7 +42,7 @@ class ProvisioningTestsMixin(object):
         self.zone_localhost_with_infinibox()
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
-                with self.cinder_volume_context(1) as cinder_volume:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     with self.cinder_mapping_context(cinder_volume):
                         [multipath_device] = get_infinidat_native_multipath_block_devices()
                     get_storage_model().rescan_and_wait_for(ScsiDevicesAreReady())
@@ -57,7 +50,7 @@ class ProvisioningTestsMixin(object):
     def test_create_snapshot(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
-                with self.cinder_volume_context(1) as cinder_volume:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
                     with self.cinder_snapshot_context(cinder_volume):
                         [infinibox_snapshot] = infinibox_volume.get_snapshots()

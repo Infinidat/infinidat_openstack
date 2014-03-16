@@ -31,7 +31,10 @@ SETTINGS = [
 def get_enabled_backends(config_parser):
     if not config_parser.has_option(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option']):
         return []
-    return config_parser.get(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option']).split()
+    value = config_parser.get(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option']).strip()
+    if value:
+        return [item.strip() for item in value.split(',') if item.strip()]
+    return []
 
 
 def get_infinibox_sections(config_parser):

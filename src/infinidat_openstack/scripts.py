@@ -102,13 +102,15 @@ def handle_commands(arguments, config_file):
             return system_list(config_parser)
         elif arguments['set']:
             key = config.apply(config_parser, address, pool_name, username, password)
-            config.update_volume_type(cinder_client, key, get_infinipy_from_arguments(arguments).get_name(), pool_name)
+            if write_on_exit:
+                config.update_volume_type(cinder_client, key, get_infinipy_from_arguments(arguments).get_name(), pool_name)
             print >> sys.stderr, DONE_MESSAGE
         elif arguments['remove']:
             if system is None:
                 return
             config.disable(config_parser, system['key'])
-            config.delete_volume_type(cinder_client, system['key'])
+            if write_on_exit:
+                config.delete_volume_type(cinder_client, system['key'])
             config.remove(config_parser, system['key'])
             print >> sys.stderr, DONE_MESSAGE
         elif arguments['enable']:
@@ -118,13 +120,15 @@ def handle_commands(arguments, config_file):
             config.enable(config_parser, system['key'])
             infinipy = get_infinipy_from_arguments(arguments)
             [pool] = infinipy.objects.Pool.find(id=pool_id)
-            config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
+            if write_on_exit:
+                config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
             print >> sys.stderr, DONE_MESSAGE
         elif arguments['disable']:
             if system is None:
                 print >> sys.stderr, "failed to disable {0}/{1}, not found".format(address, pool_id)
                 sys.exit(1)
-            config.delete_volume_type(cinder_client, system['key'])
+            if write_on_exit:
+                config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
             print >> sys.stderr, DONE_MESSAGE
 

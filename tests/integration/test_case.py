@@ -63,6 +63,7 @@ class OpenStackTestCase(TestCase):
         pool = self.infinipy.types.Pool.create(self.infinipy)
         with self.cinder_context(self.infinipy, pool):
             yield pool
+        pool.purge()
 
     @contextmanager
     def assert_volume_count(self, diff=0):
@@ -126,9 +127,6 @@ class OpenStackTestCase(TestCase):
     def cinder_mapping_context(self, cinder_volume):
         from socket import gethostname
         from infi.hbaapi import get_ports_collection
-                   #          pass
-                   #      connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
-                   # u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
         fc_ports = get_ports_collection().get_ports()
         connector = dict(initiator='iqn.sometthing:0102030405060708',
                          host=gethostname(), ip='127.0.0.1',
@@ -192,9 +190,9 @@ class RealTestCaseMixin(object):
         finally:
             after = get_cinder_log()
             print after.replace(before, '')
-            with config.get_config_parser(write_on_exit=True) as config_parser:
-                # config.delete_volume_type(self.get_cinder_client(), key)
-                config.disable(config_parser, key)
+        with config.get_config_parser(write_on_exit=True) as config_parser:
+            config.delete_volume_type(self.get_cinder_client(), key)
+            config.disable(config_parser, key)
             restart_cinder()
 
 
@@ -243,6 +241,7 @@ class MockTestCaseMixin(object):
         volume_type = "{}/{}".format(infinipy.get_name(), pool.get_name())
         cls.volume_driver_by_type[volume_type] = volume_driver
         yield
+        cls.volume_driver_by_type.pop(volume_type)
 
     @classmethod
     def apply_cinder_patches(cls):

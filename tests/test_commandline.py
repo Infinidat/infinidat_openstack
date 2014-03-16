@@ -40,7 +40,20 @@ class RealTestCase(TestCase, CommandlineTestsMixin):
     EXECUTABLE = "/usr/bin/openstack-infinibox-config"
 
     @classmethod
+    def install_package(cls):
+        from glob import glob
+        packages = glob("dist/*rpm")
+        if not packages:
+            raise SkipTest("no packages found")
+        execute_assert_success(["rpm", "-Uvh", packages[0]])
+
+    @classmethod
+    def remove_package(cls):
+        execute_assert_success(["rpm", "-e", "infinidat_openstack"])
+
+    @classmethod
     def setUpClass(cls):
+        cls.install_package()
         if not path.exists(cls.EXECUTABLE):
             raise SkipTest("openstack plugin not installed")
         cls.setup_infinibox()
@@ -48,6 +61,7 @@ class RealTestCase(TestCase, CommandlineTestsMixin):
     @classmethod
     def tearDownClass(cls):
         cls.teardown_infinibox()
+        cls.remove_package()
 
     def execute(self, args):
         return execute_assert_success([self.EXECUTABLE] + args)

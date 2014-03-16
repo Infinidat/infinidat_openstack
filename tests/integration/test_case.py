@@ -130,7 +130,7 @@ class OpenStackTestCase(TestCase):
         fc_ports = get_ports_collection().get_ports()
         connector = dict(initiator='iqn.sometthing:0102030405060708',
                          host=gethostname(), ip='127.0.0.1',
-                         wwns=[port.node_wwn for port in fc_ports], wwpns=[port.port_wwn for port in fc_ports])
+                         wwns=[str(port.node_wwn) for port in fc_ports], wwpns=[str(port.port_wwn) for port in fc_ports])
         connection = cinder_volume.initialize_connection(cinder_volume, connector)
         yield connection
         cinder_volume.terminate_connection(cinder_volume, connector)
@@ -295,13 +295,19 @@ class MockTestCaseMixin(object):
 
         def initialize_connection(cinder_volume, connector):
             from infi.storagemodel import get_storage_model
+            for item in connector["wwns"] + connector["wwpns"]:
+                assert isinstance(item, basestring)
             cls.volume_driver_by_type[cinder_volume.volume_type].initialize_connection(cinder_volume, connector)
             get_storage_model().refresh()
 
         def terminate_connection(cinder_volume, connector):
             from infi.storagemodel import get_storage_model
+            for item in connector["wwns"] + connector["wwpns"]:
+                assert isinstance(item, basestring)
             cls.volume_driver_by_type[cinder_volume.volume_type].terminate_connection(cinder_volume, connector)
             get_storage_model().refresh()
+
+
 
         def volume_snapshots__create(cinder_volume_id):
             def delete(cinder_snapshot):

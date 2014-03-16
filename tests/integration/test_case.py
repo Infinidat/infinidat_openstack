@@ -94,7 +94,22 @@ class OpenStackTestCase(TestCase):
     def cinder_volume_context(self, size_in_gb, pool=None, timeout=30):
         cinder_volume = self.create_volume(size_in_gb, pool, timeout)
         yield cinder_volume
-        self.get_cinder_client().volume.delete(cinder_volume)
+        self.get_cinder_client().volumes.delete(cinder_volume)
+
+    @contextmanager
+    def cinder_mapping_context(self, cinder_volume):
+        from socket import gethostname
+        from infi.hbaapi import get_ports_collection
+                   #          pass
+                   #      connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
+                   # u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
+        fc_ports = get_ports_collection().get_ports()
+        connector = dict(initiator='iqn.sometthing:0102030405060708',
+                         host=gethostname(), ip='127.0.0.1',
+                         wwns=[port.node_wwn for port in fc_ports], wwpns=[port.port_wwn for port in fc_ports])
+        connection = cinder_volume.initialize_connection(cinder_volume, connector)
+        yield connection
+        cinder_volume.terminate_connection(cinder_volume, connector)
 
 
 class RealTestCaseMixin(object):
@@ -177,7 +192,7 @@ class MockTestCaseMixin(object):
         cls.apply_cinder_patches()
 
     @classmethod
-    def zone_localhost_with_infinibox(self):
+    def zone_localhost_with_infinibox(cls):
         cls.smock.get_inventory().zone_with_system__full_mesh(cls.infinipy)
 
     @classmethod
@@ -199,11 +214,14 @@ class MockTestCaseMixin(object):
     @classmethod
     def apply_cinder_patches(cls):
         def create(size, volume_type=None):
+            volume_type = cls.volume_driver_by_type.keys()[0] if volume_type is None else volume_type
+
             cinder_volume = Munch(size=size, id=str(uuid4()), status='available', display_name=None)
-            if volume_type:
-                cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
-            else:
-                cls.volume_driver_by_type.values()[0].create_volume(cinder_volume)
+            cinder_volume.volume_type = volume_type
+            cinder_volume.initialize_connection = initialize_connection
+            cinder_volume.terminate_connection = terminate_connection
+
+            cls.volume_driver_by_type[volume_type].create_volume(cinder_volume)
             return cinder_volume
 
         def volume_types__findall():
@@ -214,6 +232,16 @@ class MockTestCaseMixin(object):
                 mock.get_keys.return_value = dict(volume_backend_name=value.get_volume_stats()["volume_backend_name"])
                 volume_types.append(mock)
             return volume_types
+
+        def initialize_connection(cinder_volume, connector):
+            from infi.storagemodel import get_storage_model
+            cls.volume_driver_by_type[cinder_volume.volume_type].initialize_connection(cinder_volume, connector)
+            get_storage_model().refresh()
+
+        def terminate_connection(cinder_volume, connector):
+            from infi.storagemodel import get_storage_model
+            cls.volume_driver_by_type[cinder_volume.volume_type].terminate_connection(cinder_volume, connector)
+            get_storage_model().refresh()
 
         cls.get_cinder_client().volumes.create.side_effect = create
         cls.get_cinder_client().volume_types.findall = volume_types__findall

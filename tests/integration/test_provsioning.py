@@ -41,6 +41,19 @@ class ProvisioningTestsMixin(object):
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
 
+    def test_volume_mapping(self):
+        from infi.storagemodel import get_storage_model
+        from infi.storagemodel.predicates import ScsiDevicesAreReady
+        from infi.storagemodel.vendor.infinidat.shortcuts import get_infinidat_native_multipath_block_devices
+        self.zone_localhost_with_infinibox()
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count(1) as get_diff:
+                with self.cinder_volume_context(1) as cinder_volume:
+                    with self.cinder_mapping_context(cinder_volume):
+                        [multipath_device] = get_infinidat_native_multipath_block_devices()
+                    get_storage_model().rescan_and_wait_for(ScsiDevicesAreReady())
+
+
     def test_create_snapshot(self):
         raise test_case.SkipTest("not implemented")
 

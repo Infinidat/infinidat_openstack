@@ -53,8 +53,7 @@ def system_list(config_parser):
         status = "connection successul"
         system_serial = system_name = pool_name = 'n/a'
         try:
-            infinipy = get_infinipy_from_arguments({'<address>':system['address'], '<username>':system['username'],
-                                                    '<password>':system['password']})
+            infinipy = get_infinipy_for_system(system)
             system_serial = infinipy.get_serial()
             system_name = infinipy.get_name()
             [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
@@ -93,6 +92,11 @@ def assert_rc_file_exists(config_file):
     if not os.path.exists(os.path.expanduser(config_file)):
         _print("cinder environment file {0} does not exist".format(config_file), sys.stderr)
         raise SystemExit(1)
+
+
+def get_infinipy_for_system(system):
+    return get_infinipy_from_arguments({'<address>':system['address'], '<username>':system['username'],
+                                        '<password>':system['password']})
 
 
 def get_infinipy_from_arguments(arguments):
@@ -145,14 +149,14 @@ def handle_commands(arguments, config_file):
         elif arguments['update']:
             if arguments["all"]:
                 for _system in config.get_systems(config_parser):
-                    infinipy = get_infinipy_from_arguments(_system)
+                    infinipy = get_infinipy_for_system(_system)
                     [pool] = infinipy.objects.Pool.find(id=_system['pool_id'])
                     config.update_volume_type(cinder_client, _system['key'], infinipy.get_name(), pool.get_name())
             else:
                 if system is None:
                     _print("failed to update {0}/{1}, not found".format(address, pool_id), sys.stderr)
                     sys.exit(1)
-                infinipy = get_infinipy_from_arguments(system)
+                infinipy = get_infinipy_for_system(system)
                 [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
                 config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
             _print(DONE_NO_RESTART_MESSAGE, sys.stderr)

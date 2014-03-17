@@ -28,6 +28,9 @@ Options:
 import docopt
 import sys
 import os
+import warnings
+warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
+
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable")
 DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
@@ -74,18 +77,14 @@ def get_cinder_client(rcfile):
     return client.Client(*args)
 
 
-def ignore_warnings():
-    import warnings
-    warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
-
-
 def assert_config_file_exists(config_file):
-    if not os.path.exists(config_file):
+    if not os.path.exists(os.path.expanduser(config_file)):
         _print("cinder configuration file {0} does not exist".format(config_file), sys.stderr)
         raise SystemExit(1)
 
+
 def assert_rc_file_exists(config_file):
-    if not os.path.exists(config_file):
+    if not os.path.exists(os.path.expanduser(config_file)):
         _print("cinder environment file {0} does not exist".format(config_file), sys.stderr)
         raise SystemExit(1)
 
@@ -174,7 +173,6 @@ def main(argv=sys.argv[1:]):
     config_file = arguments['--config-file']
     rc_file = arguments['--rc-file']
 
-    ignore_warnings()
     assert_config_file_exists(config_file)
     assert_rc_file_exists(rc_file)
     try:

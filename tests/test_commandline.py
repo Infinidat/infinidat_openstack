@@ -1,4 +1,4 @@
-from infi.execute import execute_assert_success
+from infi.execute import execute_assert_success, execute
 from infi.unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
 from shutil import copy

@@ -33,8 +33,8 @@ class CommandlineTestsMixin(object):
         cls.teardown_infinibox()
 
     def test_system_list__empty(self):
-        pid = self.assert_command(["list"], stderr='')
-        self.assertIn("---------", pid.get_stdout())
+        pid = self.assert_command(["list"], stderr='no systems configured\n')
+        self.assertEquals(pid.get_stdout(), '')
 
     def test_system_list(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)

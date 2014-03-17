@@ -36,13 +36,17 @@ CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable")
 DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TRACEBACK_FILE = sys.stderr
-
+TABLE_HEADER = ["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"]
+NO_SYSTEMS_MESSAGE = "no systems configured"
 
 def system_list(config_parser):
     from prettytable import PrettyTable
     from .config import get_systems, get_enabled_backends
     systems = get_systems(config_parser)
-    table = PrettyTable(["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"])
+    if not systems:
+        _print(NO_SYSTEMS_MESSAGE, sys.stderr)
+        return
+    table = PrettyTable(TABLE_HEADER)  # v0.6.1 installed by openstack does not print empty tables
     backends = get_enabled_backends(config_parser)
     for system in systems:
         status = "connection successul"

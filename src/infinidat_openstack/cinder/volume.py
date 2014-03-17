@@ -301,6 +301,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_host.set_metadata("hostname", get_os_hostname())
         infinidat_host.set_metadata("platform", get_os_platform())
         infinidat_host.set_metadata("powertools_version", get_powertools_version())
+        self._set_basic_metadata(infinidat_host)
 
     def _set_basic_metadata(self, infinidat_volume):
         infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))

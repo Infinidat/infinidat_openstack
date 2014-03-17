@@ -41,14 +41,50 @@ class ProvisioningTestsMixin(object):
         from infi.storagemodel.vendor.infinidat.predicates import InfinidatVolumeExists, InfinidatVolumeDoesNotExist
         predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
         with self.cinder_mapping_context(cinder_volume):
+            for mapping in infinibox_volume.get_luns():
+                [host] = self.infinipy.objects.Host.find(id=mapping['host_id'])
+                self.assert_host_metadata(host)
             get_storage_model().rescan_and_wait_for(InfinidatVolumeExists(*predicate_args))
         get_storage_model().rescan_and_wait_for(InfinidatVolumeDoesNotExist(*predicate_args))
+
+    def assert_basic_metadata(self, infinibox_object):
+        from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver
+        metdata = infinibox_object.get_metadata()
+        for key, value in dict(system="openstack", driver_version=InfiniboxVolumeDriver.VERSION).items():
+            self.assertEquals(metdata[key], str(value))
+
+    def assert_host_metadata(self, infinibox_host):
+        from infinidat_openstack.cinder.volume import get_os_hostname, get_os_platform, get_powertools_version
+        self.assert_basic_metadata(infinibox_host)
+        metdata = infinibox_host.get_metadata()
+        for key, value in dict(hostname=get_os_hostname(), platform=get_os_platform(),
+                               powertools_version=get_powertools_version()).items():
+            self.assertEquals(metdata[key], str(value))
+
+    def assert_volume_metadata(self, cinder_volume, infinibox_volume):
+        self.assert_basic_metadata(infinibox_volume)
+        metdata = infinibox_volume.get_metadata()
+        for key, value in dict(cinder_id=cinder_volume.id, cinder_display_name=cinder_volume.display_name).items():
+            self.assertEquals(metdata[key], str(value))
+
+    def assert_snapshot_metadata(self, cinder_volume, infinibox_volume):
+        self.assert_basic_metadata(infinibox_volume)
+        self.assert_volume_metadata(cinder_volume, infinibox_volume)
+        metdata = infinibox_volume.get_metadata()
+
+    def assert_clone_metadata(self, cinder_volume, infinibox_volume):
+        self.assert_basic_metadata(infinibox_volume)
+        self.assert_volume_metadata(cinder_volume, infinibox_volume)
+        metdata = infinibox_volume.get_metadata()
+        for key, value in dict(delete_parent=True).items():
+            self.assertEquals(metdata[key], str(value))
 
     def test_volume_mapping(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
+                    self.assert_volume_metadata(cinder_volume, infinibox_volume)
                     self.assert_cinder_mapping(cinder_volume, infinibox_volume)
 
     def test_create_snapshot(self):
@@ -58,6 +94,7 @@ class ProvisioningTestsMixin(object):
                     [infinibox_volume], _ = get_diff()
                     with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
                         [infinibox_snapshot] = infinibox_volume.get_snapshots()
+                        self.assert_snapshot_metadata(cinder_snapshot, infinibox_snapshot)
 
     def test_create_and_map_clone(self):
         with self.provisioning_pool_context() as pool:
@@ -68,6 +105,8 @@ class ProvisioningTestsMixin(object):
                         [infinibox_snapshot] = infinibox_volume.get_snapshots()
                         [infinibox_clone] = infinibox_snapshot.get_clones()
                         self.assert_cinder_mapping(cinder_clone, infinibox_clone)
+                        self.assert_clone_metadata(cinder_clone, infinibox_clone)
+                        self.assertEquals(infinibox_snapshot.get_metadata()['internal'], "true")
 
     def test_volume_extend(self):
         with self.provisioning_pool_context() as pool:

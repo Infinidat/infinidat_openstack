@@ -6,16 +6,19 @@ Usage:
     openstack-infinibox-config [options] remove <address> <pool-id>
     openstack-infinibox-config [options] enable <address> <pool-id>
     openstack-infinibox-config [options] disable <address> <pool-id>
+    openstack-infinibox-config [options] update (all | <address> <pool-id>)
     openstack-infinibox-config -h | --help
     openstack-infinibox-config -v | --version
 
 
 Options:
     list                                 print information about configured InfiniBox systems
+    refresh                              refresh volume types display
     set                                  add or update an existing InfiniBox system to Cinder
     remove                               delete an existing InfiniBox system from Cinder
     enable                               configure Cinder to load driver for this InfiniBox system
     disable                              configure Cinder not to load driver for this InfiniBox system
+    update                               update volume type display name to match the pool name
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --dry-run                            don't save changes
@@ -28,12 +31,13 @@ import os
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable")
 DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
+DONE_NO_RESTART_MESSAGE = "done"
+TRACEBACK_FILE = sys.stderr
 
 
 def system_list(config_parser):
     from prettytable import PrettyTable
     from .config import get_systems, get_enabled_backends
-    from infinipy import System
     systems = get_systems(config_parser)
     table = PrettyTable(["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"])
     backends = get_enabled_backends(config_parser)
@@ -41,7 +45,7 @@ def system_list(config_parser):
         status = "connection successul"
         system_serial = system_name = pool_name = 'n/a'
         try:
-            infinipy = System(system['address'], username=system['username'], password=system['password'])
+            infinipy = get_infinipy_from_arguments(system)
             system_serial = infinipy.get_serial()
             system_name = infinipy.get_name()
             [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
@@ -50,7 +54,7 @@ def system_list(config_parser):
             status = error.message
         table.add_row([system['address'], system['username'], system['key'] in backends, status,
                        system_serial, system_name, system['pool_id'], pool_name])
-    print table
+    _print(table)
 
 
 def parse_environment(text):
@@ -77,7 +81,12 @@ def ignore_warnings():
 
 def assert_config_file_exists(config_file):
     if not os.path.exists(config_file):
-        print >> sys.stderr, "cinder configuration file {0} does not exist".format(config_file)
+        _print("cinder configuration file {0} does not exist".format(config_file), sys.stderr)
+        raise SystemExit(1)
+
+def assert_rc_file_exists(config_file):
+    if not os.path.exists(config_file):
+        _print("cinder environment file {0} does not exist".format(config_file), sys.stderr)
         raise SystemExit(1)
 
 
@@ -89,9 +98,13 @@ def get_infinipy_from_arguments(arguments):
 
 def handle_commands(arguments, config_file):
     from . import config
+    from .exceptions import UserException
     write_on_exit = not arguments.get("--dry-run") and any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
     address, username, password = arguments.get('<address>'), arguments.get('<username>'), arguments.get('<password>')
-    pool_name, pool_id = arguments.get('<pool-name>'), int(arguments.get("<pool-id>") or 0)
+    try:
+        pool_name, pool_id = arguments.get('<pool-name>'), int(arguments.get("<pool-id>") or 0)
+    except ValueError:
+        raise UserException("invalid pool id: {0}".format(arguments.get("<pool-id>")))
     try:
         cinder_client = get_cinder_client(arguments['--rc-file'])
     except Exception, error:
@@ -104,47 +117,76 @@ def handle_commands(arguments, config_file):
             key = config.apply(config_parser, address, pool_name, username, password)
             if write_on_exit:
                 config.update_volume_type(cinder_client, key, get_infinipy_from_arguments(arguments).get_name(), pool_name)
-            print >> sys.stderr, DONE_MESSAGE
+            _print(DONE_MESSAGE, sys.stderr)
         elif arguments['remove']:
             if system is None:
-                return
-            config.disable(config_parser, system['key'])
+                _print("failed to remove {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                sys.exit(1)
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])
+            config.disable(config_parser, system['key'])
             config.remove(config_parser, system['key'])
-            print >> sys.stderr, DONE_MESSAGE
+            _print(DONE_MESSAGE, sys.stderr)
         elif arguments['enable']:
             if system is None:
-                print >> sys.stderr, "failed to enable {0}/{1}, not found".format(address, pool_id)
+                _print("failed to enable {0}/{1}, not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             config.enable(config_parser, system['key'])
             infinipy = get_infinipy_from_arguments(arguments)
             [pool] = infinipy.objects.Pool.find(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
-            print >> sys.stderr, DONE_MESSAGE
+            _print(DONE_MESSAGE, sys.stderr)
+        elif arguments['update']:
+            if arguments["all"]:
+                for _system in config.get_systems(config_parser):
+                    infinipy = get_infinipy_from_arguments(_system)
+                    [pool] = infinipy.objects.Pool.find(id=_system['pool_id'])
+                    config.update_volume_type(cinder_client, _system['key'], infinipy.get_name(), pool.get_name())
+            else:
+                if system is None:
+                    _print("failed to update {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                    sys.exit(1)
+                infinipy = get_infinipy_from_arguments(system)
+                [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
+                config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
+            _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
         elif arguments['disable']:
             if system is None:
-                print >> sys.stderr, "failed to disable {0}/{1}, not found".format(address, pool_id)
+                _print("failed to disable {0}/{1}, not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
-            print >> sys.stderr, DONE_MESSAGE
+            _print(DONE_MESSAGE, sys.stderr)
+
+
+def _print(text, stream=sys.stdout):
+    print >> stream, text
 
 
 def main(argv=sys.argv[1:]):
     from .__version__ import __version__
     from .exceptions import UserException
+    from traceback import print_exception
+    from infinipy.system.exceptions import APICommandFailed
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments['--config-file']
+    rc_file = arguments['--rc-file']
 
     ignore_warnings()
     assert_config_file_exists(config_file)
+    assert_rc_file_exists(rc_file)
     try:
         return handle_commands(arguments, config_file)
     except SystemExit:
         raise
+    except APICommandFailed, error:
+        _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
+        raise SystemExit(1)
     except UserException, error:
-        print >> sys.stderr, error.message or error
-
+        _print(error.message or error, sys.stderr)
+        raise SystemExit(1)
+    except:
+        print_exception(*sys.exc_info(), file=TRACEBACK_FILE)
+        raise SystemExit(1)

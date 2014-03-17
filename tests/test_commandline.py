@@ -94,12 +94,6 @@ class CommandlineTestsMixin(object):
         stderr = 'invalid pool id: foo\n'
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
-    def test_set__invalid_credentials(self):
-        pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
-        stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
-        pid = self.assert_command(args, stderr=stderr, return_code=1)
-
     def test_credentials_file_missing(self):
         stderr = 'cinder environment file /path/does/not/exists does not exist\n'
         pid = self.assert_command(["list", "--rc-file=/path/does/not/exists"], stderr=stderr, return_code=1)
@@ -294,3 +288,9 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
             pid = self.assert_command(["list"], stderr='')
         format_kwargs = dict(system_name=self.infinipy.get_name(), pool_id=pool.get_id())
         self.assertEquals(EXPECTED_FAILURE.format(**format_kwargs).lstrip(), pid.get_stdout())
+
+    def test_set__invalid_credentials(self):
+        pool = self.infinipy.types.Pool.create(self.infinipy)
+        args = ["set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
+        stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)

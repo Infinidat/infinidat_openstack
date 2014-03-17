@@ -150,7 +150,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     @_infinipy_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
-        if tgt_cinder_volume.size != src_cinder_volume:
+        if tgt_cinder_volume.size != src_cinder_volume.size:
             raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.

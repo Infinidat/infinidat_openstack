@@ -97,13 +97,17 @@ class OpenStackTestCase(TestCase):
 
         poll()
 
-    def create_volume(self, size_in_gb, pool=None, timeout=30):
-        volume_type = None if pool is None else "{}/{}".format(self.infinipy.get_name(), pool.get_name())
-        cinder_volume = self.get_cinder_client().volumes.create(size_in_gb, volume_type=volume_type)
+    def _create_volume(self, size_in_gb, volume_type=None, source_volid=None, timeout=30):
+        cinder_volume = self.get_cinder_client().volumes.create(size_in_gb,
+                                                                volume_type=volume_type, source_volid=source_volid)
         if timeout:
             self.wait_for_object_creation(cinder_volume, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
         return cinder_volume
+
+    def create_volume(self, size_in_gb, pool=None, timeout=30):
+        volume_type = None if pool is None else "{}/{}".format(self.infinipy.get_name(), pool.get_name())
+        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
         cinder_snapshot = self.get_cinder_client().volume_snapshots.create(cinder_volume.id)
@@ -111,6 +115,11 @@ class OpenStackTestCase(TestCase):
             self.wait_for_object_creation(cinder_snapshot, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
         return cinder_snapshot
+
+    def create_clone(self, cinder_volume, timeout=30):
+        cinder_clone = self._create_volume(cinder_volume.size, timeout=timeout,
+                                           volume_type=cinder_volume.volume_type, source_volid=cinder_volume.id)
+        return cinder_clone
 
     def delete_cinder_object(self, cinder_object, timeout=30):
         cinder_object.delete()
@@ -140,6 +149,12 @@ class OpenStackTestCase(TestCase):
         cinder_snapshot = self.create_snapshot(cinder_volume, timeout)
         yield cinder_snapshot
         self.delete_cinder_object(cinder_snapshot, timeout)
+
+    @contextmanager
+    def cinder_clone_context(self, cinder_volume, timeout=30):
+        cinder_clone = self.create_clone(cinder_volume, timeout)
+        yield cinder_clone
+        self.delete_cinder_object(cinder_clone, timeout)
 
 
 class RealTestCaseMixin(object):
@@ -178,6 +193,7 @@ class RealTestCaseMixin(object):
         cls.system = cls.system_factory.allocate_infinidat_system()
         cls.infinipy = cls.system.get_infinipy()
         cls.infinipy.purge()
+        cls.zone_localhost_with_infinibox()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
@@ -236,6 +252,7 @@ class MockTestCaseMixin(object):
     def setup_infinibox(cls):
         cls.infinipy = cls.smock.get_inventory().add_infinibox()
         cls.apply_cinder_patches()
+        cls.zone_localhost_with_infinibox()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
@@ -266,11 +283,12 @@ class MockTestCaseMixin(object):
                 return
             raise NotFound(cinder_object.id)
 
-        def create(size, volume_type=None):
+        def create(size, volume_type=None, source_volid=None):
             def delete(cinder_volume):
                 cinder_volume.status = 'deleting'
                 cls.volumes.pop(cinder_volume.id)
                 volume_driver.delete_volume(cinder_volume)
+
             volume_type = cls.volume_driver_by_type.keys()[0] if volume_type is None else volume_type
             volume_driver = cls.volume_driver_by_type[volume_type]
             volume_id = str(uuid4())
@@ -281,7 +299,11 @@ class MockTestCaseMixin(object):
             cinder_volume.initialize_connection = initialize_connection
             cinder_volume.terminate_connection = terminate_connection
 
-            volume_driver.create_volume(cinder_volume)
+            if source_volid is None: # new volume
+                volume_driver.create_volume(cinder_volume)
+            else: # new clone
+                cinder_volume.source_volid = source_volid
+                volume_driver.create_cloned_volume(cinder_volume, cls.volumes[source_volid])
             return cinder_volume
 
         def volume_types__findall():
@@ -306,7 +328,6 @@ class MockTestCaseMixin(object):
                 assert isinstance(item, basestring)
             cls.volume_driver_by_type[cinder_volume.volume_type].terminate_connection(cinder_volume, connector)
             get_storage_model().refresh()
-
 
 
         def volume_snapshots__create(cinder_volume_id):

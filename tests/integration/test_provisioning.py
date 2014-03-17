@@ -35,44 +35,38 @@ class ProvisioningTestsMixin(object):
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
 
-    def test_volume_mapping(self):
+    def assert_cinder_mapping(self, cinder_volume, infinibox_volume):
         from infi.storagemodel import get_storage_model
         from infi.storagemodel.vendor.infinidat.predicates import InfinidatVolumeExists, InfinidatVolumeDoesNotExist
-        self.zone_localhost_with_infinibox()
+        predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
+        with self.cinder_mapping_context(cinder_volume):
+            get_storage_model().rescan_and_wait_for(InfinidatVolumeExists(*predicate_args))
+        get_storage_model().rescan_and_wait_for(InfinidatVolumeDoesNotExist(*predicate_args))
+
+    def test_volume_mapping(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
-                    predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
-                    with self.cinder_mapping_context(cinder_volume):
-                        get_storage_model().rescan_and_wait_for(InfinidatVolumeExists(*predicate_args))
-                    get_storage_model().rescan_and_wait_for(InfinidatVolumeDoesNotExist(*predicate_args))
+                    self.assert_cinder_mapping(cinder_volume, infinibox_volume)
 
     def test_create_snapshot(self):
         with self.provisioning_pool_context() as pool:
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
-                    with self.cinder_snapshot_context(cinder_volume):
+                    with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
                         [infinibox_snapshot] = infinibox_volume.get_snapshots()
 
-    def test_create_clone(self):
-        raise test_case.SkipTest("not implemented")
-
-    def test_create_and_delete_volume(self):
-        raise test_case.SkipTest("not implemented")
-
-    def test_create_and_delete_snapshot(self):
-        raise test_case.SkipTest("not implemented")
-
-    def test_create_and_delete_clone(self):
-        raise test_case.SkipTest("not implemented")
-
-    def test_snapshot_mapping(self):
-        raise test_case.SkipTest("not implemented")
-
-    def test_clone_mapping(self):
-        raise test_case.SkipTest("not implemented")
+    def test_create_and_map_clone(self):
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    with self.cinder_clone_context(cinder_volume) as cinder_clone:
+                        [infinibox_snapshot] = infinibox_volume.get_snapshots()
+                        [infinibox_clone] = infinibox_snapshot.get_clones()
+                        self.assert_cinder_mapping(cinder_clone, infinibox_clone)
 
     def test_volume_extend(self):
         raise test_case.SkipTest("not implemented")

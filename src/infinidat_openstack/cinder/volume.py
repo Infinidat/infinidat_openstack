@@ -32,6 +32,7 @@ CONF.register_opts(volume_opts)
 SYSTEM_METADATA_VALUE = 'openstack'
 STATS_VENDOR = 'Infinidat'
 STATS_PROTOCOL = 'FibreChannel'
+INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
 
 class InfiniboxException(exception.CinderException):
@@ -64,6 +65,35 @@ def _infinipy_to_cinder_exceptions(f):
         with _infinipy_to_cinder_exceptions_context():
             return f(*args, **kwargs)
     return _log_decorator(wrapper)
+
+
+def get_os_hostname():
+    from socket import getfqdn
+    return getfqdn()
+
+
+def get_os_platform():
+    from platform import platform
+    return platform()
+
+
+def get_powertools_version():
+    """[root@io102 ~]# cat /opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py
+    __version__ = "1.7.post12.g0e465ca"
+    __git_commiter_name__ = "Arnon Yaari"
+    __git_commiter_email__ = "arnony@infinidat.com"
+    __git_branch__ = '(detached from 0e465ca)'
+    __git_remote_tracking_branch__ = '(No remote tracking)'
+    __git_remote_url__ = '(Not remote tracking)'
+    __git_head_hash__ = '0e465ca976456a5bb7af814d075958990d07a7cc'
+    __git_head_subject__ = 'TRIVIAL update test name'
+    __git_head_message__ = ''
+    __git_dirty_diff__ = ''"""
+    try:
+        with open(INFINIHOST_VERSION_FILE) as fd:
+            return fd.read().splitlines()[0].split('=').strip().strip('"')
+    except:
+        return '0'
 
 
 class InfiniboxVolumeDriver(san.SanDriver):
@@ -119,6 +149,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_volume = self._find_volume(cinder_volume)
         for wwpn in connector[u'wwpns']:
             host = self._find_or_create_host_by_wwpn(wwpn)
+            self._set_host_metadata(host)
             lun = host.map_volume(infinidat_volume)
             target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
@@ -137,6 +168,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
                 host = self._find_host_by_wwpn(wwpn)
             except NoObjectFound:
                 continue
+            self._set_host_metadata(host)
             host.unmap_volume(infinidat_volume, force=force)
             self._delete_host_if_unused(host)
 
@@ -264,6 +296,11 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_volume.set_metadata("delete_parent", str(delete_parent))
         infinidat_volume.set_metadata("cinder_display_name", str(cinder_volume.display_name))
         self._set_basic_metadata(infinidat_volume)
+
+    def _set_host_metadata(self, infinidat_host):
+        infinidat_host.set_metadata("hostname", get_os_hostname())
+        infinidat_host.set_metadata("platform", get_os_platform())
+        infinidat_host.set_metadata("powertools_version", get_powertools_version())
 
     def _set_basic_metadata(self, infinidat_volume):
         infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))

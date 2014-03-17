@@ -203,7 +203,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
         cls.remove_package()
 
     def execute(self, args):
-        return execute_assert_success([self.EXECUTABLE] + args)
+        return execute([self.EXECUTABLE] + args)
 
     def setUp(self):
         with open(self.CONFIG_FILE, 'r') as fd:

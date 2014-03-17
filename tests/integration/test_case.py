@@ -296,9 +296,9 @@ class MockTestCaseMixin(object):
             cinder_volume.volume_type = volume_type
             cinder_volume.get = lambda *args, **kwargs: get(cinder_volume)
             cinder_volume.delete = lambda: delete(cinder_volume)
-            cinder_volume.extend = lambda new_size_in_gb: extend(cinder_volume, new_size_in_gb)
             cinder_volume.initialize_connection = initialize_connection
             cinder_volume.terminate_connection = terminate_connection
+            cinder_volume.extend = extend
 
             if source_volid is None: # new volume
                 volume_driver.create_volume(cinder_volume)

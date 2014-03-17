@@ -39,6 +39,7 @@ TRACEBACK_FILE = sys.stderr
 TABLE_HEADER = ["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"]
 NO_SYSTEMS_MESSAGE = "no systems configured"
 
+
 def system_list(config_parser):
     from prettytable import PrettyTable
     from .config import get_systems, get_enabled_backends

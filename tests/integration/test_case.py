@@ -299,6 +299,7 @@ class MockTestCaseMixin(object):
             cinder_volume.initialize_connection = initialize_connection
             cinder_volume.terminate_connection = terminate_connection
             cinder_volume.extend = extend
+            cinder_volume.manager = Munch(extend=extend) # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
 
             if source_volid is None: # new volume
                 volume_driver.create_volume(cinder_volume)

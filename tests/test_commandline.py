@@ -213,7 +213,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
             with open(self.CONFIG_FILE, 'w') as fd:
                 fd.write(before)
 
-        self.addCleanup(restor)
+        self.addCleanup(restore)
 
 
 class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):

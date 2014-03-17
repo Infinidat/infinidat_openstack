@@ -48,7 +48,8 @@ def system_list(config_parser):
         status = "connection successul"
         system_serial = system_name = pool_name = 'n/a'
         try:
-            infinipy = get_infinipy_from_arguments(system)
+            infinipy = get_infinipy_from_arguments({'<address>':system['address'], '<username>':system['username'],
+                                                    '<password>':system['password']})
             system_serial = infinipy.get_serial()
             system_name = infinipy.get_name()
             [pool] = infinipy.objects.Pool.find(id=system['pool_id'])

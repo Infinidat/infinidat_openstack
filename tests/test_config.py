@@ -28,7 +28,7 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 1
@@ -46,14 +46,14 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 2
@@ -74,14 +74,14 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 1
@@ -100,14 +100,14 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch.object(config, "System") as System:
+            with patch("infinipy.System") as System:
                 System().get_serial.return_value = 2
                 pool = Mock()
                 pool.get_id.return_value = 2

@@ -1,6 +1,6 @@
 import contextlib
 from . import exceptions
-from infinipy import System
+
 
 @contextlib.contextmanager
 def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
@@ -94,6 +94,7 @@ def remove(config_parser, key):
 
 
 def apply(config_parser, address, pool_name, username, password):
+    from infinipy import System
     system = System(address, username=username, password=password)
     [pool] = system.objects.Pool.find(name=pool_name)
     pool_id = pool.get_id()

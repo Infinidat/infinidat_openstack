@@ -296,6 +296,7 @@ class MockTestCaseMixin(object):
             cinder_volume.volume_type = volume_type
             cinder_volume.get = lambda *args, **kwargs: get(cinder_volume)
             cinder_volume.delete = lambda: delete(cinder_volume)
+            cinder_volume.extend = lambda new_size_in_gb: extend(cinder_volume, new_size_in_gb)
             cinder_volume.initialize_connection = initialize_connection
             cinder_volume.terminate_connection = terminate_connection
 
@@ -329,6 +330,8 @@ class MockTestCaseMixin(object):
             cls.volume_driver_by_type[cinder_volume.volume_type].terminate_connection(cinder_volume, connector)
             get_storage_model().refresh()
 
+        def extend(cinder_volume, new_size_in_gb):
+            cls.volume_driver_by_type[cinder_volume.volume_type].extend_volume(cinder_volume, new_size_in_gb)
 
         def volume_snapshots__create(cinder_volume_id):
             def delete(cinder_snapshot):

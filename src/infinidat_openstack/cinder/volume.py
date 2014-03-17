@@ -171,7 +171,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
             if not infinidat_volume.is_master_volume():
                 # Current limitation in Infinibox - cannot resize non-master volumes
                 raise exception.InvalidInput(reason=translate("cannot resize volume: only master volumes can be resized"))
-            if infinidat_volume.get_size() < new_size_in_bytes:
+            if infinidat_volume.get_size() > new_size_in_bytes:
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)
 

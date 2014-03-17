@@ -1,5 +1,6 @@
 import test_case
 from infi.unittest import parameters
+from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 
 
 class ProvisioningTestsMixin(object):
@@ -69,7 +70,19 @@ class ProvisioningTestsMixin(object):
                         self.assert_cinder_mapping(cinder_clone, infinibox_clone)
 
     def test_volume_extend(self):
-        raise test_case.SkipTest("not implemented")
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    cinder_volume.extend(2)
+                    self.assert_infinibox_volume_size(infinibox_volume, 2)
+
+    def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
+        from capacity import GiB
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
+        poll()
 
 
 class ProvisioningTestsMixin_Mock(test_case.OpenStackTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):

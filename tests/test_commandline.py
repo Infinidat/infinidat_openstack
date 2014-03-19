@@ -239,6 +239,10 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
 
         self.addCleanup(restore)
 
+    @contextmanager
+    def mock_clients_context(self):
+        yield
+
 
 class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     CONFIG_FILE = "tests/conf/commandline_tests.conf"

@@ -1,11 +1,12 @@
 from infi.execute import execute_assert_success, execute
 from infi.unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
+from logging import getLogger
 from shutil import copy
 from mock import patch
 from os import path
 import sys
-
+logger = getLogger(__name__)
 
 EXPECTED_OUTPUT = """
 +------------------------------------------------+-----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
@@ -31,6 +32,23 @@ class CommandlineTestsMixin(object):
     @classmethod
     def tearDownClass(cls):
         cls.teardown_infinibox()
+
+    def _assert_version(self, arg):
+        import test_commandline
+        from StringIO import StringIO
+        from infinidat_openstack.__version__ import __version__
+        expected_output = "{}\n\n\n".format(__version__)
+        output = StringIO()
+        with patch.object(test_commandline, "deduce_config_files", return_value=[]):
+            with patch.object(sys, "stdout", new=output):
+                self.assert_command([arg, ]).get_stdout()
+        self.assertEquals(output.getvalue(), expected_output)
+
+    def test_version__long(self):
+        self._assert_version("--version")
+
+    def test_version__short(self):
+        self._assert_version("-v")
 
     def test_system_list__empty(self):
         pid = self.assert_command(["list"], stderr='no systems configured\n')
@@ -262,7 +280,9 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         pid = Munch()
         with self.mock_clients_context(), self.mock_print_context() as (stdout, stderr):
             try:
-                result = scripts.main(deduce_config_files(self, args) +  args)
+                commandline_arguments = deduce_config_files(self, args) +  args
+                logger.debug(repr(commandline_arguments))
+                result = scripts.main(commandline_arguments)
             except SystemExit, error:
                 result = error.code
         pid.get_returncode = lambda: int(0 if result is None else result)

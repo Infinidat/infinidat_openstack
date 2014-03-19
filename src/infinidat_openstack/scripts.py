@@ -7,8 +7,8 @@ Usage:
     openstack-infinibox-config [options] enable <address> <pool-id>
     openstack-infinibox-config [options] disable <address> <pool-id>
     openstack-infinibox-config [options] update (all | <address> <pool-id>)
-    openstack-infinibox-config -h | --help
-    openstack-infinibox-config -v | --version
+    openstack-infinibox-config (-h | --help)
+    openstack-infinibox-config (-v | --version)
 
 
 Options:
@@ -186,6 +186,9 @@ def main(argv=sys.argv[1:]):
     config_file = arguments['--config-file']
     rc_file = arguments['--rc-file']
 
+    if arguments['-v']:
+        print __version__  # we don't use _print so it would act the same as --version which is handled by docopt
+        return
     assert_config_file_exists(config_file)
     assert_rc_file_exists(rc_file)
     try:

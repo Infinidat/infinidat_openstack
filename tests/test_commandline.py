@@ -263,6 +263,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         with patch("infinidat_openstack.scripts.handle_commands", side_effect=RuntimeError()):
             pid = self.assert_command(["list"], return_code=1)
             self.assertIn("RuntimeError", pid.get_stderr())
+            self.assertIn("ERROR: Caught unhandled exception", pid.get_stderr())
 
     def test_connection_to_cinderclient_fails(self):
         with patch("infinidat_openstack.scripts.get_cinder_client", side_effect=Exception()):

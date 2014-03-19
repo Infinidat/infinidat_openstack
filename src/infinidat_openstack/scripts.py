@@ -196,5 +196,6 @@ def main(argv=sys.argv[1:]):
         _print(error.message or error, sys.stderr)
         raise SystemExit(1)
     except:
+        _print("ERROR: Caught unhandled exception", sys.stderr)
         print_exception(*sys.exc_info(), file=TRACEBACK_FILE)
         raise SystemExit(1)

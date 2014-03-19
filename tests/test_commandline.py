@@ -139,12 +139,13 @@ class CommandlineTestsMixin(object):
 
     def test_set_old_infinibox_ends_with_error(self):
         from infi.vendata.integration_tests import system_allocation
-        import test_commandline
+        from infinidat_openstack.__version__ import __version__
         system = system_allocation.SystemFactory.allocate_infinidat_system(labels=["ci-ready", "infinibox-1.4"])
         version = system.get_infinipy().get_version()
         self.addCleanup(system.release)
         args = ["set", system.get_fqdn(), "pool-name", "infinidat", "123456"]
-        stderr = 'Infinidat Openstack v0.1.1 does not support InfiniBox v{version}\n'.format(version=version)
+        stderr = 'Infinidat Openstack v{product_version} does not support InfiniBox v{infinibox_version}\n'
+        stderr = stderr.format(product_version=__version__, infinibox_version=version)
         with patch.object(self, "mock_clients_context"):  # later infinipy.System is patched, we don't want that
             pid = self.assert_command(args, stderr=stderr, return_code=1)
 

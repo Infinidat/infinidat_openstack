@@ -139,13 +139,12 @@ class CommandlineTestsMixin(object):
 
     def test_set_old_infinibox_ends_with_error(self):
         from infi.vendata.integration_tests import system_allocation
-        from infinidat_openstack.__version__ import __version__
         system = system_allocation.SystemFactory.allocate_infinidat_system(labels=["ci-ready", "infinibox-1.4"])
         version = system.get_infinipy().get_version()
         self.addCleanup(system.release)
         args = ["set", system.get_fqdn(), "pool-name", "infinidat", "123456"]
         stderr = 'Infinidat Openstack v{product_version} does not support InfiniBox v{infinibox_version}\n'
-        stderr = stderr.format(product_version=__version__, infinibox_version=version)
+        stderr = stderr.format(product_version=self.get_product_version(), infinibox_version=version)
         with patch.object(self, "mock_clients_context"):  # later infinipy.System is patched, we don't want that
             pid = self.assert_command(args, stderr=stderr, return_code=1)
 
@@ -243,6 +242,12 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
     def mock_clients_context(self):
         yield
 
+    def get_product_version(self):
+        from infi.execute import execute_assert_success
+        pid =  execute_assert_success(["/usr/bin/python", "-c",
+                                       "from infinidat_openstack.__version__ import __version__; print __version__"])
+        return pid.get_stdout().strip()
+
 
 class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     CONFIG_FILE = "tests/conf/commandline_tests.conf"
@@ -331,3 +336,8 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         args = ["set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
         stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
         pid = self.assert_command(args, stderr=stderr, return_code=1)
+
+    def get_product_version(self):
+        from infinidat_openstack.__version__ import __version__
+        return __version__
+

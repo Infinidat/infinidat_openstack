@@ -101,8 +101,11 @@ def get_infinipy_for_system(system):
 
 def get_infinipy_from_arguments(arguments):
     from infinipy import System
+    from infinidat_openstack.versioncheck import raise_if_unsupported
     address, username, password = arguments.get('<address>'), arguments.get('<username>'), arguments.get('<password>')
-    return System(address, username=username, password=password)
+    system = System(address, username=username, password=password)
+    raise_if_unsupported(system.get_version())
+    return system
 
 
 def handle_commands(arguments, config_file):

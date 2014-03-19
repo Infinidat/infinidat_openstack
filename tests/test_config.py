@@ -30,6 +30,7 @@ class ConfigTestCase(TestCase):
             self.assertEquals(config.get_enabled_backends(config_parser), list())
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -48,6 +49,7 @@ class ConfigTestCase(TestCase):
             self.assertEquals(config.get_enabled_backends(config_parser), list())
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -55,6 +57,7 @@ class ConfigTestCase(TestCase):
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 System().objects.Pool.find.return_value = [pool]
@@ -76,6 +79,7 @@ class ConfigTestCase(TestCase):
             self.assertEquals(config.get_enabled_backends(config_parser), list())
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -83,6 +87,7 @@ class ConfigTestCase(TestCase):
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -102,6 +107,7 @@ class ConfigTestCase(TestCase):
             self.assertEquals(config.get_enabled_backends(config_parser), list())
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 1
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -109,6 +115,7 @@ class ConfigTestCase(TestCase):
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System:
                 System().get_serial.return_value = 2
+                System().get_version.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 System().objects.Pool.find.return_value = [pool]

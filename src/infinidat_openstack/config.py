@@ -95,7 +95,9 @@ def remove(config_parser, key):
 
 def apply(config_parser, address, pool_name, username, password):
     from infinipy import System
+    from infinidat_openstack.versioncheck import raise_if_unsupported
     system = System(address, username=username, password=password)
+    raise_if_unsupported(system.get_version())
     [pool] = system.objects.Pool.find(name=pool_name)
     pool_id = pool.get_id()
     key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id())

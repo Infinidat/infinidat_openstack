@@ -36,8 +36,7 @@ class CommandlineTestsMixin(object):
     def _assert_version(self, arg):
         import test_commandline
         from StringIO import StringIO
-        from infinidat_openstack.__version__ import __version__
-        expected_output = "{}\n\n\n".format(__version__)
+        expected_output = "{}\n\n\n".format(self.get_product_version())
         output = StringIO()
         with patch.object(test_commandline, "deduce_config_files", return_value=[]):
             with patch.object(sys, "stdout", new=output):

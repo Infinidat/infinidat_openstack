@@ -6,7 +6,7 @@ from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
         with self.provisioning_pool_context() as pool:
-            display_name = "{}/{}".format(self.infinipy.get_name(), pool.get_name())
+            display_name = "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
             volume_backend_name = "infinibox-{}-pool-{}".format(self.infinipy.get_serial(), pool.get_id())
             [volume_type] = [item for item in self.get_cinder_client().volume_types.findall()
                              if item.get_keys()["volume_backend_name"] == volume_backend_name]

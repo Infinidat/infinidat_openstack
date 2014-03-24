@@ -85,25 +85,25 @@ class CommandlineTestsMixin(object):
     def test_enable_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
         args = ["volume-backend", "enable", self.infinipy.get_name(), str(pool.get_id())]
-        stderr='failed to enable {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
+        stderr="failed to enable '[InfiniBox] {}/{}', not found\n".format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_remove_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
         args = ["volume-backend", "remove", self.infinipy.get_name(), str(pool.get_id())]
-        stderr='failed to remove {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
+        stderr="failed to remove '[InfiniBox] {}/{}', not found\n".format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_disable_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
         args = ["volume-backend", "disable", self.infinipy.get_name(), str(pool.get_id())]
-        stderr='failed to disable {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
+        stderr="failed to disable '[InfiniBox] {}/{}', not found\n".format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_update_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
         args = ["volume-backend", "update", self.infinipy.get_name(), str(pool.get_id())]
-        stderr='failed to update {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
+        stderr="failed to update '[InfiniBox] {}/{}', not found\n".format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_remove__non_integer_pool_id(self):

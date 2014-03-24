@@ -133,7 +133,7 @@ def handle_commands(arguments, config_file):
             _print(DONE_MESSAGE, sys.stderr)
         elif arguments['remove']:
             if system is None:
-                _print("failed to remove {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                _print("failed to remove '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])
@@ -142,7 +142,7 @@ def handle_commands(arguments, config_file):
             _print(DONE_MESSAGE, sys.stderr)
         elif arguments['enable']:
             if system is None:
-                _print("failed to enable {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                _print("failed to enable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             config.enable(config_parser, system['key'])
             infinipy = get_infinipy_from_arguments(arguments)
@@ -158,7 +158,7 @@ def handle_commands(arguments, config_file):
                     config.update_volume_type(cinder_client, _system['key'], infinipy.get_name(), pool.get_name())
             else:
                 if system is None:
-                    _print("failed to update {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                    _print("failed to update '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                     sys.exit(1)
                 infinipy = get_infinipy_for_system(system)
                 [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
@@ -166,7 +166,7 @@ def handle_commands(arguments, config_file):
             _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
         elif arguments['disable']:
             if system is None:
-                _print("failed to disable {0}/{1}, not found".format(address, pool_id), sys.stderr)
+                _print("failed to disable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])

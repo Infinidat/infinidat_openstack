@@ -106,7 +106,7 @@ class OpenStackTestCase(TestCase):
         return cinder_volume
 
     def create_volume(self, size_in_gb, pool=None, timeout=30):
-        volume_type = None if pool is None else "{}/{}".format(self.infinipy.get_name(), pool.get_name())
+        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
         return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
@@ -270,7 +270,7 @@ class MockTestCaseMixin(object):
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
         volume_drive_context = Munch()
         volume_driver.do_setup(cls.cinder_context)
-        volume_type = "{}/{}".format(infinipy.get_name(), pool.get_name())
+        volume_type = "[InfiniBox] {}/{}".format(infinipy.get_name(), pool.get_name())
         cls.volume_driver_by_type[volume_type] = volume_driver
         yield
         cls.volume_driver_by_type.pop(volume_type)

@@ -12,7 +12,7 @@ EXPECTED_OUTPUT = """
 +------------------------------------------------+-----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
 |                    address                     |  username | enabled |        status        | system serial |                  system name                   | pool id |               pool name               |
 +------------------------------------------------+-----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
-| {system_name} | infinidat |   True  | connection successul |     {system_serial}     | {system_name} |   {pool_id}   | {pool_name} |
+| {system_name} | infinidat |   True  | connection successul |     {system_serial}     | {system_name} |   {pool_id}  | {pool_name} |
 +------------------------------------------------+-----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
 """
 
@@ -20,7 +20,7 @@ EXPECTED_FAILURE = """
 +------------------------------------------------+-----------+---------+--------+---------------+-------------+---------+-----------+
 |                    address                     |  username | enabled | status | system serial | system name | pool id | pool name |
 +------------------------------------------------+-----------+---------+--------+---------------+-------------+---------+-----------+
-| {system_name} | infinidat |   True  | error  |      n/a      |     n/a     |   {pool_id}   |    n/a    |
+| {system_name} | infinidat |   True  | error  |      n/a      |     n/a     |   {pool_id}  |    n/a    |
 +------------------------------------------------+-----------+---------+--------+---------------+-------------+---------+-----------+
 """
 
@@ -185,15 +185,16 @@ class RealInfiniBoxMixin(object):
 class MockInfiniBoxMixin(object):
     @classmethod
     def setup_infinibox(cls):
-        from infinisim import Simulator
+        from infinisim.infinibox import Infinibox as Simulator
         from infinipy import System
         cls.simulator = Simulator()
         cls.simulator.set_serial(12345)
+        cls.simulator.activate()
         cls.infinipy = System(cls.simulator)
 
     @classmethod
     def teardown_infinibox(cls):
-        pass
+        cls.simulator.deactivate()
 
 
 class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):

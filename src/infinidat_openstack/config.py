@@ -118,7 +118,7 @@ def apply(config_parser, address, pool_name, username, password):
 
 
 def update_volume_type(cinder_client, volume_backend_name, system_name, pool_name):
-    display_name = "{0}/{1}".format(system_name, pool_name)
+    display_name = "[InfiniBox] {0}/{1}".format(system_name, pool_name)
     [volume_type] = [item for item in cinder_client.volume_types.findall()
                      if item.get_keys().get("volume_backend_name") == volume_backend_name
                      or item.name == display_name] or \

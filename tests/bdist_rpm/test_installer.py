@@ -72,7 +72,7 @@ class InstallerTestCase(TestCase):
         execute_assert_success(["/usr/bin/python", "-c", "from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver"])
 
     def assert_commandline_tool_works(self):
-        execute_assert_success(["/usr/bin/infini-openstack", "list"])
+        execute_assert_success(["/usr/bin/infini-openstack", "volume-backend", "list"])
 
     def build_two_packages(self):
         first = self.build()

@@ -50,15 +50,15 @@ class CommandlineTestsMixin(object):
         self._assert_version("-v")
 
     def test_system_list__empty(self):
-        pid = self.assert_command(["list"], stderr='no systems configured\n')
+        pid = self.assert_command(["volume-backend", "list"], stderr='no systems configured\n')
         self.assertEquals(pid.get_stdout(), '')
 
     def test_system_list(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        pid = self.assert_command(["list"], stderr='')
+        pid = self.assert_command(["volume-backend", "list"], stderr='')
         self.assertIn(self.infinipy.get_name(), pid.get_stdout())
         self.assertIn(str(self.infinipy.get_serial()), pid.get_stdout())
         self.assertIn(pool.get_name(), pid.get_stdout())
@@ -66,74 +66,74 @@ class CommandlineTestsMixin(object):
 
     def test_set_and_remove(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        args = ["remove", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "remove", self.infinipy.get_name(), str(pool.get_id())]
         pid = self.assert_command(args, stderr=stderr)
 
     def test_set_and_toggle_enable(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        args = ["enable", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "enable", self.infinipy.get_name(), str(pool.get_id())]
         pid = self.assert_command(args, stderr=stderr)
-        args = ["disable", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "disable", self.infinipy.get_name(), str(pool.get_id())]
         pid = self.assert_command(args, stderr=stderr)
 
     def test_enable_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["enable", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "enable", self.infinipy.get_name(), str(pool.get_id())]
         stderr='failed to enable {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_remove_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["remove", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "remove", self.infinipy.get_name(), str(pool.get_id())]
         stderr='failed to remove {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_disable_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["disable", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "disable", self.infinipy.get_name(), str(pool.get_id())]
         stderr='failed to disable {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_update_non_existing_key(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["update", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "update", self.infinipy.get_name(), str(pool.get_id())]
         stderr='failed to update {}/{}, not found\n'.format(self.infinipy.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_remove__non_integer_pool_id(self):
-        args = ["remove", self.infinipy.get_name(), "foo"]
+        args = ["volume-backend", "remove", self.infinipy.get_name(), "foo"]
         stderr = 'invalid pool id: foo\n'
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_credentials_file_missing(self):
         stderr = 'cinder environment file /path/does/not/exists does not exist\n'
-        pid = self.assert_command(["list", "--rc-file=/path/does/not/exists"], stderr=stderr, return_code=1)
+        pid = self.assert_command(["volume-backend", "list", "--rc-file=/path/does/not/exists"], stderr=stderr, return_code=1)
 
     def test_config_file_missing(self):
         stderr = 'cinder configuration file /path/does/not/exists does not exist\n'
-        pid = self.assert_command(["list", "--config-file=/path/does/not/exists"], stderr=stderr, return_code=1)
+        pid = self.assert_command(["volume-backend", "list", "--config-file=/path/does/not/exists"], stderr=stderr, return_code=1)
 
     def test_update_after_pool_rename(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         pool.set_name("foo")
-        args = ["update", self.infinipy.get_name(), str(pool.get_id())]
+        args = ["volume-backend", "update", self.infinipy.get_name(), str(pool.get_id())]
         pid = self.assert_command(args, stderr='done\n')
 
     def test_update_all(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        args = ["update", "all"]
+        args = ["volume-backend", "update", "all"]
         pid = self.assert_command(args, stderr='done\n')
 
     def test_set_old_infinibox_ends_with_error(self):
@@ -141,7 +141,7 @@ class CommandlineTestsMixin(object):
         system = system_allocation.SystemFactory.allocate_infinidat_system(labels=["ci-ready", "infinibox-1.4"])
         version = system.get_infinipy().get_version()
         self.addCleanup(system.release)
-        args = ["set", system.get_fqdn(), "pool-name", "infinidat", "123456"]
+        args = ["volume-backend", "set", system.get_fqdn(), "infinidat", "123456", "pool-name"]
         stderr = 'Infinidat Openstack v{product_version} does not support InfiniBox v{infinibox_version}\n'
         stderr = stderr.format(product_version=self.get_product_version(), infinibox_version=version)
         with patch.object(self, "mock_clients_context"):  # later infinipy.System is patched, we don't want that
@@ -197,7 +197,7 @@ class MockInfiniBoxMixin(object):
 
 
 class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
-    EXECUTABLE = "/usr/bin/infini-openstack"
+    EXECUTABLE = "/usr/bin/openstack-infinibox-config"
     CONFIG_FILE = "/etc/cinder/cinder.conf"
 
     @classmethod
@@ -301,38 +301,38 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_catching_general_exception(self):
         with patch("infinidat_openstack.scripts.handle_commands", side_effect=RuntimeError()):
-            pid = self.assert_command(["list"], return_code=1)
+            pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("RuntimeError", pid.get_stderr())
             self.assertIn("ERROR: Caught unhandled exception", pid.get_stderr())
 
     def test_connection_to_cinderclient_fails(self):
         with patch("infinidat_openstack.scripts.get_cinder_client", side_effect=Exception()):
-            pid = self.assert_command(["list"], return_code=1)
+            pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("failed to connect to cinder service", pid.get_stderr())
 
     def test_system_list__exact_output(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        pid = self.assert_command(["list"], stderr='')
+        pid = self.assert_command(["volume-backend", "list"], stderr='')
         format_kwargs = dict(system_name=self.infinipy.get_name(), system_serial=self.infinipy.get_serial(),
                              pool_name=pool.get_name(), pool_id=pool.get_id())
         self.assertEquals(EXPECTED_OUTPUT.format(**format_kwargs).lstrip(), pid.get_stdout())
 
     def test_system_list__password_changed(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "infinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         with patch("infinidat_openstack.scripts.get_infinipy_from_arguments", side_effect=Exception("error")):
-            pid = self.assert_command(["list"], stderr='')
+            pid = self.assert_command(["volume-backend", "list"], stderr='')
         format_kwargs = dict(system_name=self.infinipy.get_name(), pool_id=pool.get_id())
         self.assertEquals(EXPECTED_FAILURE.format(**format_kwargs).lstrip(), pid.get_stdout())
 
     def test_set__invalid_credentials(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
         stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 

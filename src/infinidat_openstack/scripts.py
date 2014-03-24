@@ -1,17 +1,16 @@
 """infini-openstack v{0}
 
 Usage:
-    infini-openstack [options] list
-    infini-openstack [options] set <address> <pool-name> <username> <password>
-    infini-openstack [options] remove <address> <pool-id>
-    infini-openstack [options] enable <address> <pool-id>
-    infini-openstack [options] disable <address> <pool-id>
-    infini-openstack [options] update (all | <address> <pool-id>)
+    infini-openstack [options] volume-backend list
+    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning]
+    infini-openstack [options] volume-backend remove <management-address> <pool-id>
+    infini-openstack [options] volume-backend enable <management-address> <pool-id>
+    infini-openstack [options] volume-backend disable <management-address> <pool-id>
+    infini-openstack [options] volume-backend update (all | <management-address> <pool-id>)
     infini-openstack (-h | --help)
     infini-openstack (-v | --version)
 
-
-Options:
+Commands:
     list                                 print information about configured InfiniBox systems
     refresh                              refresh volume types display
     set                                  add or update an existing InfiniBox system to Cinder
@@ -19,6 +18,8 @@ Options:
     enable                               configure Cinder to load driver for this InfiniBox system
     disable                              configure Cinder not to load driver for this InfiniBox system
     update                               update volume type display name to match the pool name
+
+Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --dry-run                            don't save changes
@@ -95,14 +96,14 @@ def assert_rc_file_exists(config_file):
 
 
 def get_infinipy_for_system(system):
-    return get_infinipy_from_arguments({'<address>':system['address'], '<username>':system['username'],
+    return get_infinipy_from_arguments({'<management-address>':system['address'], '<username>':system['username'],
                                         '<password>':system['password']})
 
 
 def get_infinipy_from_arguments(arguments):
     from infinipy import System
     from infinidat_openstack.versioncheck import raise_if_unsupported
-    address, username, password = arguments.get('<address>'), arguments.get('<username>'), arguments.get('<password>')
+    address, username, password = arguments.get('<management-address>'), arguments.get('<username>'), arguments.get('<password>')
     system = System(address, username=username, password=password)
     raise_if_unsupported(system.get_version())
     return system
@@ -112,7 +113,7 @@ def handle_commands(arguments, config_file):
     from . import config
     from .exceptions import UserException
     write_on_exit = not arguments.get("--dry-run") and any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
-    address, username, password = arguments.get('<address>'), arguments.get('<username>'), arguments.get('<password>')
+    address, username, password = arguments.get('<management-address>'), arguments.get('<username>'), arguments.get('<password>')
     try:
         pool_name, pool_id = arguments.get('<pool-name>'), int(arguments.get("<pool-id>") or 0)
     except ValueError:
@@ -126,7 +127,7 @@ def handle_commands(arguments, config_file):
         if arguments['list']:
             return system_list(config_parser)
         elif arguments['set']:
-            key = config.apply(config_parser, address, pool_name, username, password)
+            key = config.apply(config_parser, address, pool_name, username, password, arguments.get("--thick-provisioning"))
             if write_on_exit:
                 config.update_volume_type(cinder_client, key, get_infinipy_from_arguments(arguments).get_name(), pool_name)
             _print(DONE_MESSAGE, sys.stderr)

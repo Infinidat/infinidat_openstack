@@ -91,7 +91,7 @@ def install_files():
 def delete_uneeded_files():
     buildroot = os.environ.get("RPM_BUILD_ROOT")
     for filepath in glob.glob(os.path.join(buildroot, "usr", "bin", "*")):
-        if not filepath.endswith("openstack-infinibox-config"):
+        if not filepath.endswith("infini-openstack"):
             os.remove(filepath)
     for filepath in glob.glob(os.path.join(buildroot, "usr", "lib", "python*", "site-packages", "*", "requires.txt")):
         os.remove(filepath)
@@ -107,7 +107,7 @@ def write_install_files():
                       os.path.exists(os.path.join(buildroot, item.strip()[1:]))
                       and not item.startswith("/usr/bin/") and not item.endswith("/requires.txt")]
     with open("dist/INSTALLED_FILES", 'w') as fd:
-        fd.write("/usr/bin/openstack-infinibox-config\n")
+        fd.write("/usr/bin/infini-openstack\n")
         fd.write("\n".join(sorted(set(existing_files))))
 
 

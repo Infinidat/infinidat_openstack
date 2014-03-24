@@ -1,14 +1,14 @@
-"""openstack-infinibox-config v{0}
+"""infini-openstack v{0}
 
 Usage:
-    openstack-infinibox-config [options] list
-    openstack-infinibox-config [options] set <address> <pool-name> <username> <password>
-    openstack-infinibox-config [options] remove <address> <pool-id>
-    openstack-infinibox-config [options] enable <address> <pool-id>
-    openstack-infinibox-config [options] disable <address> <pool-id>
-    openstack-infinibox-config [options] update (all | <address> <pool-id>)
-    openstack-infinibox-config (-h | --help)
-    openstack-infinibox-config (-v | --version)
+    infini-openstack [options] list
+    infini-openstack [options] set <address> <pool-name> <username> <password>
+    infini-openstack [options] remove <address> <pool-id>
+    infini-openstack [options] enable <address> <pool-id>
+    infini-openstack [options] disable <address> <pool-id>
+    infini-openstack [options] update (all | <address> <pool-id>)
+    infini-openstack (-h | --help)
+    infini-openstack (-v | --version)
 
 
 Options:

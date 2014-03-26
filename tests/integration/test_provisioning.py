@@ -116,6 +116,17 @@ class ProvisioningTestsMixin(object):
                     cinder_volume.manager.extend(cinder_volume, 2)  # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
                     self.assert_infinibox_volume_size(infinibox_volume, 2)
 
+    def test_clone_extend(self):
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    with self.cinder_clone_context(cinder_volume) as cinder_clone:
+                        [infinibox_snapshot] = infinibox_volume.get_snapshots()
+                        [infinibox_clone] = infinibox_snapshot.get_clones()
+                        cinder_volume.manager.extend(cinder_clone, 2)  # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
+                        self.assert_infinibox_volume_size(infinibox_clone, 2)
+
     def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
         from capacity import GiB
         @retry_func(WaitAndRetryStrategy(timeout, 1))

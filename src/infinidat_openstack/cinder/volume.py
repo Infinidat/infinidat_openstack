@@ -200,9 +200,6 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_volume = self._find_volume(cinder_volume)
         new_size_in_bytes = new_size * GiB
         if infinidat_volume.get_size() != new_size_in_bytes:
-            if not infinidat_volume.is_master_volume():
-                # Current limitation in Infinibox - cannot resize non-master volumes
-                raise exception.InvalidInput(reason=translate("cannot resize volume: only master volumes can be resized"))
             if infinidat_volume.get_size() > new_size_in_bytes:
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)

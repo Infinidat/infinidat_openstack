@@ -4,19 +4,20 @@ try:
     from cinder.openstack.common.gettextutils import _ as translate
     from cinder.volume.drivers.san import san
     from cinder import exception
-except ImportError:
+except (ImportError, NameError):  # importing with just python hits NameErorr from the san module, the _ trick
     from .mock import logging, translate
     from . import mock as san
     from . import mock as exception
 
 from contextlib import contextmanager
+from functools import wraps
 from capacity import GiB
 from infi.pyutils.decorators import wraps
 
 LOG = logging.getLogger(__name__)
 
 volume_opts = [
-    cfg.StrOpt('infinidat_pool', help='Name of the pool from which volumes are allocated', default=None),
+    cfg.StrOpt('infinidat_pool_id', help='id the pool from which volumes are allocated', default=None),
     cfg.StrOpt('infinidat_provision_type', help='Provisioning type (thick or thin)', default='thick'),
     cfg.StrOpt('infinidat_volume_name_prefix', help='Cinder volume name prefix in Infinibox', default='openstack-vol'),
     cfg.StrOpt('infinidat_snapshot_name_prefix', help='Cinder snapshot name prefix in Infinibox',
@@ -31,6 +32,7 @@ CONF.register_opts(volume_opts)
 SYSTEM_METADATA_VALUE = 'openstack'
 STATS_VENDOR = 'Infinidat'
 STATS_PROTOCOL = 'FibreChannel'
+INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
 
 class InfiniboxException(exception.CinderException):
@@ -47,12 +49,51 @@ def _infinipy_to_cinder_exceptions_context():
         raise InfiniboxException(str(e))
 
 
+def _log_decorator(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        LOG.info("--> {0}({1})".format(func.__name__, '...'))
+        return_value = func(self, *args, **kwargs)
+        LOG.info("<-- {0!r}".format(return_value))
+        return return_value
+    return wrapper
+
+
 def _infinipy_to_cinder_exceptions(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         with _infinipy_to_cinder_exceptions_context():
             return f(*args, **kwargs)
-    return wrapper
+    return _log_decorator(wrapper)
+
+
+def get_os_hostname():
+    from socket import getfqdn
+    return getfqdn()
+
+
+def get_os_platform():
+    from platform import platform
+    return platform()
+
+
+def get_powertools_version():
+    """[root@io102 ~]# cat /opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py
+    __version__ = "1.7.post12.g0e465ca"
+    __git_commiter_name__ = "Arnon Yaari"
+    __git_commiter_email__ = "arnony@infinidat.com"
+    __git_branch__ = '(detached from 0e465ca)'
+    __git_remote_tracking_branch__ = '(No remote tracking)'
+    __git_remote_url__ = '(Not remote tracking)'
+    __git_head_hash__ = '0e465ca976456a5bb7af814d075958990d07a7cc'
+    __git_head_subject__ = 'TRIVIAL update test name'
+    __git_head_message__ = ''
+    __git_dirty_diff__ = ''"""
+    try:
+        with open(INFINIHOST_VERSION_FILE) as fd:
+            return fd.read().splitlines()[0].split('=').strip().strip('"')
+    except:
+        return '0'
 
 
 class InfiniboxVolumeDriver(san.SanDriver):
@@ -67,7 +108,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
-        for key in ('infinidat_provision_type', 'infinidat_pool', 'san_login', 'san_password'):
+        for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
                 raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
 
@@ -108,6 +149,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_volume = self._find_volume(cinder_volume)
         for wwpn in connector[u'wwpns']:
             host = self._find_or_create_host_by_wwpn(wwpn)
+            self._set_host_metadata(host)
             lun = host.map_volume(infinidat_volume)
             target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
@@ -126,6 +168,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
                 host = self._find_host_by_wwpn(wwpn)
             except NoObjectFound:
                 continue
+            self._set_host_metadata(host)
             host.unmap_volume(infinidat_volume, force=force)
             self._delete_host_if_unused(host)
 
@@ -139,7 +182,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     @_infinipy_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
-        if tgt_cinder_volume.size != src_cinder_volume:
+        if tgt_cinder_volume.size != src_cinder_volume.size:
             raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.
@@ -160,7 +203,7 @@ class InfiniboxVolumeDriver(san.SanDriver):
             if not infinidat_volume.is_master_volume():
                 # Current limitation in Infinibox - cannot resize non-master volumes
                 raise exception.InvalidInput(reason=translate("cannot resize volume: only master volumes can be resized"))
-            if infinidat_volume.get_size() < new_size_in_bytes:
+            if infinidat_volume.get_size() > new_size_in_bytes:
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)
 
@@ -189,9 +232,8 @@ class InfiniboxVolumeDriver(san.SanDriver):
         """Retrieve stats info from volume group."""
 
         data = {}
-        backend_name = self.configuration.safe_get('volume_backend_name')
-        system_and_pool_name = "{0}-{1}".format(self.system.get_name(), self._get_pool().get_name())
-        data["volume_backend_name"] = backend_name or system_and_pool_name
+        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self._get_pool().get_id())
+        data["volume_backend_name"] = system_and_pool_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
@@ -204,9 +246,9 @@ class InfiniboxVolumeDriver(san.SanDriver):
 
     def _get_pool(self):
         if not self.pool:
-            pools = self.system.objects.Pool.find(name=self.configuration.infinidat_pool)
+            pools = self.system.objects.Pool.find(id=int(self.configuration.infinidat_pool_id))
             if not pools:
-                raise exception.InvalidInput(translate("pool {0} not found".format(self.configuration.infinidat_pool)))
+                raise exception.InvalidInput(translate("pool {0} not found".format(int(self.configuration.infinidat_pool_id))))
             self.pool = pools[0]
         return self.pool
 
@@ -252,7 +294,14 @@ class InfiniboxVolumeDriver(san.SanDriver):
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
         infinidat_volume.set_metadata("cinder_id", str(cinder_volume.id))
         infinidat_volume.set_metadata("delete_parent", str(delete_parent))
+        infinidat_volume.set_metadata("cinder_display_name", str(cinder_volume.display_name))
         self._set_basic_metadata(infinidat_volume)
+
+    def _set_host_metadata(self, infinidat_host):
+        infinidat_host.set_metadata("hostname", get_os_hostname())
+        infinidat_host.set_metadata("platform", get_os_platform())
+        infinidat_host.set_metadata("powertools_version", get_powertools_version())
+        self._set_basic_metadata(infinidat_host)
 
     def _set_basic_metadata(self, infinidat_volume):
         infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))

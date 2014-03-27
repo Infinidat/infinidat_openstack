@@ -6,7 +6,9 @@ import infi.traceback
 
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
-EXCLUDED_PACKAGES = ("distribute", "setuptools", "six", "requests", "bson", "pymongo", "ipython", "oslo.config")
+EXCLUDED_PACKAGES = ("distribute", "setuptools", "pip",
+                     "six", "requests", "bson", "pymongo", "ipython", "oslo.config",
+                     "python-cinderclient", "Babel", "pbr", "simplejson", "prettytable")
 
 
 def get_name():
@@ -16,9 +18,9 @@ def get_name():
 
 
 def get_dependencies():
-    from infi.pypi_manager import dependencies
+    from infi.pypi_manager import depends
     name = get_name()
-    return [item[1] for item in dependencies.get_dependencies(get_name())]
+    return [item[1] for item in depends.get_dependencies(get_name())]
 
 
 def urlretrieve(*args, **kwargs):
@@ -70,30 +72,42 @@ def build_dependency(dependency):
         dirname = [item for item in directories if os.path.isdir(item)][0]
         os.chdir(dirname)
         add_import_setuptools_to_setup_py()
-        system(INSTALL_LINE.format("../INSTALLED_FILES." + dependency))
+        system(INSTALL_LINE.format("../dist/INSTALLED_FILES." + dependency))
         os.chdir(CURDIR)
         system("tar czf {} {}".format(fname, dirname))
         shutil.rmtree(dirname)
 
 
 def cleanup():
-    remove_glob("INSTALLED_FILES*")
+    remove_glob("dist/INSTALLED_FILES*")
 
 
 def install_files():
     for dependency in set(get_dependencies()) - set(EXCLUDED_PACKAGES):
         build_dependency(dependency)
-    system(INSTALL_LINE.format("INSTALLED_FILES"))
+    system(INSTALL_LINE.format("dist/INSTALLED_FILES"))
+
+
+def delete_uneeded_files():
+    buildroot = os.environ.get("RPM_BUILD_ROOT")
+    for filepath in glob.glob(os.path.join(buildroot, "usr", "bin", "*")):
+        if not filepath.endswith("infini-openstack"):
+            os.remove(filepath)
+    for filepath in glob.glob(os.path.join(buildroot, "usr", "lib", "python*", "site-packages", "*", "requires.txt")):
+        os.remove(filepath)
 
 
 def write_install_files():
     files = []
-    for filename in glob.glob("INSTALLED_FILES*"):
+    for filename in glob.glob("dist/INSTALLED_FILES*"):
         with open(filename) as fd:
             files.extend(fd.read().splitlines())
     buildroot = os.environ.get("RPM_BUILD_ROOT")
-    existing_files = [item for item in files if os.path.exists(os.path.join(buildroot, item.strip()[1:]))]
-    with open("INSTALLED_FILES", 'w') as fd:
+    existing_files = [item for item in files if
+                      os.path.exists(os.path.join(buildroot, item.strip()[1:]))
+                      and not item.startswith("/usr/bin/") and not item.endswith("/requires.txt")]
+    with open("dist/INSTALLED_FILES", 'w') as fd:
+        fd.write("/usr/bin/infini-openstack\n")
         fd.write("\n".join(sorted(set(existing_files))))
 
 
@@ -101,6 +115,7 @@ def write_install_files():
 def main():
     cleanup()
     install_files()
+    delete_uneeded_files()
     write_install_files()
 
 

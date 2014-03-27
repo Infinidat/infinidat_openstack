@@ -18,9 +18,9 @@ def get_name():
 
 
 def get_dependencies():
-    from infi.pypi_manager import dependencies
+    from infi.pypi_manager import depends
     name = get_name()
-    return [item[1] for item in dependencies.get_dependencies(get_name())]
+    return [item[1] for item in depends.get_dependencies(get_name())]
 
 
 def urlretrieve(*args, **kwargs):

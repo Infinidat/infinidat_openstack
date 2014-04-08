@@ -139,7 +139,7 @@ class CommandlineTestsMixin(object):
     def test_set_old_infinibox_ends_with_error(self):
         from infi.vendata.integration_tests import system_allocation
         system = system_allocation.SystemFactory.allocate_infinidat_system(labels=["ci-ready", "infinibox-1.4"])
-        version = system.get_infinipy().get_version()
+        version = system.get_version()
         self.addCleanup(system.release)
         args = ["volume-backend", "set", system.get_fqdn(), "infinidat", "123456", "pool-name"]
         stderr = 'Infinidat Openstack v{product_version} does not support InfiniBox v{infinibox_version}\n'

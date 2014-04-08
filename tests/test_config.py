@@ -28,9 +28,9 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -47,17 +47,17 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 System().objects.Pool.find.return_value = [pool]
@@ -77,17 +77,17 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
@@ -105,17 +105,17 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinipy.System") as System:
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
                 System().get_serial.return_value = 1
-                System().get_version.return_value = '1.5'
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 System().objects.Pool.find.return_value = [pool]
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinipy.System") as System:
-                System().get_serial.return_value = 2
-                System().get_version.return_value = '1.5'
+            with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
+                System().get_serial.return_value = 1
+                JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 System().objects.Pool.find.return_value = [pool]

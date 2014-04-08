@@ -198,7 +198,7 @@ class MockInfiniBoxMixin(object):
 
 
 class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
-    EXECUTABLE = "/usr/bin/openstack-infinibox-config"
+    EXECUTABLE = "/usr/bin/infini-openstack"
     CONFIG_FILE = "/etc/cinder/cinder.conf"
 
     @classmethod

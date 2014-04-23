@@ -333,8 +333,13 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_set__invalid_credentials(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "1nfinidat", "123456", pool.get_name()]
         stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
+
+    def test_set__invalid_pool_name(self):
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", "foo"]
+        stderr = "InfiniBox API failed: No object matched criteria: {'name': 'foo'}\n"
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def get_product_version(self):

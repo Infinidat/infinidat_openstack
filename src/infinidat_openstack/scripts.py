@@ -182,7 +182,7 @@ def main(argv=sys.argv[1:]):
     from .__version__ import __version__
     from .exceptions import UserException
     from traceback import print_exception
-    from infinipy.system.exceptions import APICommandFailed
+    from infinipy.system.exceptions import SystemException
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments['--config-file']
     rc_file = arguments['--rc-file']
@@ -196,7 +196,7 @@ def main(argv=sys.argv[1:]):
         return handle_commands(arguments, config_file)
     except SystemExit:
         raise
-    except APICommandFailed, error:
+    except SystemException, error:
         _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
         raise SystemExit(1)
     except UserException, error:

@@ -33,7 +33,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
             config.disable(config_parser, key)
             config.enable(config_parser, key)
@@ -52,7 +52,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
@@ -60,7 +60,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 kwargs['pool_name'] = 'pool2'
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
@@ -82,7 +82,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
@@ -90,7 +90,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 kwargs['pool_name'] = 'pool2'
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
@@ -110,7 +110,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
             with patch("infinipy.System") as System, patch("json_rest.JSONRestSender") as JSONRestSender:
@@ -118,7 +118,7 @@ class ConfigTestCase(TestCase):
                 JSONRestSender().get.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
-                System().objects.Pool.find.return_value = [pool]
+                System().objects.Pool.get.return_value = pool
                 kwargs['pool_name'] = 'pool2'
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)

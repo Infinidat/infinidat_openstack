@@ -14,7 +14,8 @@ from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
 
 
-CINDER_LOG_FILE = "/var/log/cinder/volume.log"
+VOLUME_LOG_FILE = "/var/log/cinder/volume.log"
+CINDER_VOLUME_LOG_FILE = "/var/log/cinder/cinder-volume.log"
 
 @cached_function
 def prepare_host():
@@ -37,8 +38,13 @@ def restart_cinder():
     sleep(10) # give time for the volume drive to come up, no APIs to checking this
 
 
-def get_cinder_log():
-    with open(CINDER_LOG_FILE) as fd:
+def get_volume_log():
+    with open(VOLUME_LOG_FILE) as fd:
+        return fd.read()
+
+
+def get_cinder_volume_log():
+    with open(CINDER_VOLUME_LOG_FILE) as fd:
         return fd.read()
 
 
@@ -208,18 +214,32 @@ class RealTestCaseMixin(object):
             pass
 
     @contextmanager
+    def volume_log_context(self):
+        before = get_volume_log()
+        try:
+            yield
+        finally:
+            after = get_volume_log()
+            print after.replace(before, '')
+
+    @contextmanager
+    def cinder_volume_log_context(self):
+        before = get_cinder_volume_log()
+        try:
+            yield
+        finally:
+            after = get_cinder_volume_log()
+            print after.replace(before, '')
+
+    @contextmanager
     def cinder_context(self, infinipy, pool):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
-        before = get_cinder_log()
-        try:
+        with self.volume_log_context(), self.cinder_volume_log_context():
             yield
-        finally:
-            after = get_cinder_log()
-            print after.replace(before, '')
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
             config.disable(config_parser, key)

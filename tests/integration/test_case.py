@@ -211,7 +211,7 @@ class RealTestCaseMixin(object):
             finally:
                 print '--- {} ---'.format(logfile_path)
                 print fd.read()
-                print '--- end ---'.format
+                print '--- end ---'.format(logfile_path)
 
     @contextmanager
     def cinder_logs_context(self):

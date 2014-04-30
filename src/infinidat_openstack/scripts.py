@@ -57,7 +57,7 @@ def system_list(config_parser):
             infinipy = get_infinipy_for_system(system)
             system_serial = infinipy.get_serial()
             system_name = infinipy.get_name()
-            [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
+            pool = infinipy.objects.Pool.get(id=system['pool_id'])
             pool_name = pool.get_name()
         except Exception, error:
             status = error.message
@@ -102,10 +102,10 @@ def get_infinipy_for_system(system):
 
 def get_infinipy_from_arguments(arguments):
     from infinipy import System
-    from infinidat_openstack.versioncheck import raise_if_unsupported
+    from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     address, username, password = arguments.get('<management-address>'), arguments.get('<username>'), arguments.get('<password>')
     system = System(address, username=username, password=password)
-    raise_if_unsupported(system.get_version())
+    raise_if_unsupported(get_system_version(address, username, password, system))
     return system
 
 
@@ -146,7 +146,7 @@ def handle_commands(arguments, config_file):
                 sys.exit(1)
             config.enable(config_parser, system['key'])
             infinipy = get_infinipy_from_arguments(arguments)
-            [pool] = infinipy.objects.Pool.find(id=pool_id)
+            pool = infinipy.objects.Pool.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
             _print(DONE_MESSAGE, sys.stderr)
@@ -154,14 +154,14 @@ def handle_commands(arguments, config_file):
             if arguments["all"]:
                 for _system in config.get_systems(config_parser):
                     infinipy = get_infinipy_for_system(_system)
-                    [pool] = infinipy.objects.Pool.find(id=_system['pool_id'])
+                    pool = infinipy.objects.Pool.get(id=_system['pool_id'])
                     config.update_volume_type(cinder_client, _system['key'], infinipy.get_name(), pool.get_name())
             else:
                 if system is None:
                     _print("failed to update '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                     sys.exit(1)
                 infinipy = get_infinipy_for_system(system)
-                [pool] = infinipy.objects.Pool.find(id=system['pool_id'])
+                pool = infinipy.objects.Pool.get(id=system['pool_id'])
                 config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
             _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
         elif arguments['disable']:
@@ -182,7 +182,7 @@ def main(argv=sys.argv[1:]):
     from .__version__ import __version__
     from .exceptions import UserException
     from traceback import print_exception
-    from infinipy.system.exceptions import APICommandFailed
+    from infinipy.system.exceptions import SystemException
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments['--config-file']
     rc_file = arguments['--rc-file']
@@ -196,7 +196,7 @@ def main(argv=sys.argv[1:]):
         return handle_commands(arguments, config_file)
     except SystemExit:
         raise
-    except APICommandFailed, error:
+    except SystemException, error:
         _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
         raise SystemExit(1)
     except UserException, error:

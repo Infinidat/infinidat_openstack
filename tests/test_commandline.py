@@ -139,7 +139,7 @@ class CommandlineTestsMixin(object):
     def test_set_old_infinibox_ends_with_error(self):
         from infi.vendata.integration_tests import system_allocation
         system = system_allocation.SystemFactory.allocate_infinidat_system(labels=["ci-ready", "infinibox-1.4"])
-        version = system.get_infinipy().get_version()
+        version = system.get_version()
         self.addCleanup(system.release)
         args = ["volume-backend", "set", system.get_fqdn(), "infinidat", "123456", "pool-name"]
         stderr = 'Infinidat Openstack v{product_version} does not support InfiniBox v{infinibox_version}\n'
@@ -198,7 +198,7 @@ class MockInfiniBoxMixin(object):
 
 
 class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
-    EXECUTABLE = "/usr/bin/openstack-infinibox-config"
+    EXECUTABLE = "/usr/bin/infini-openstack"
     CONFIG_FILE = "/etc/cinder/cinder.conf"
 
     @classmethod
@@ -333,8 +333,13 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_set__invalid_credentials(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), pool.get_name(), "1nfinidat", "123456"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "1nfinidat", "123456", pool.get_name()]
         stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
+
+    def test_set__invalid_pool_name(self):
+        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", "foo"]
+        stderr = "InfiniBox API failed: No object matched criteria: {'name': 'foo'}\n"
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def get_product_version(self):

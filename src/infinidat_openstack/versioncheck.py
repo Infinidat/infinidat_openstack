@@ -12,6 +12,21 @@ class UnsupportedVersion(UserException):
         super(UnsupportedVersion, self).__init__(msg)
 
 
+def get_system_version(address, username, password, system):
+    # infinipy does not support InfiniBox-1.4 response style, so we need to use json_rest
+    # but, if that fails (e.g. in case of invalid credentials), we want Infinipy exceptions
+    from json_rest import JSONRestSender
+    j = JSONRestSender("http://{0}".format(address))
+    j.set_basic_authorization(username, password)
+    try:
+        result = j.get('/api/rest/system/version')
+    except:
+        return system.get_version()
+    if isinstance(result, basestring):
+        return result
+    return result['result']
+
+
 def is_supported(infinibox_version):
     v = parse_version(infinibox_version)
     return FIRST_SUPPORTED_VERSION <= v < FIRST_UNSUPPORTED_VERSION

@@ -25,6 +25,7 @@ def prepare_host():
     execute(["yum", "install",   "-y", "python-devel"])
     execute(["easy_install-2.6", "-U", "requests"])
     execute(["python2.6", "setup.py", "install"])
+    execute_assert_success(["python2.6", "setup.py", "install"])
 
 
 def get_cinder_client(host="localhost"):

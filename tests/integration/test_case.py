@@ -18,6 +18,7 @@ CINDER_LOGDIR = "/var/log/cinder"
 
 @cached_function
 def prepare_host():
+    from socket import gethostname
     """using cached_function to make sure this is called only once"""
     # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
     # execute(["bin/infinihost", "settings", "check", "--auto-fix"])
@@ -26,6 +27,10 @@ def prepare_host():
     execute(["easy_install-2.6", "-U", "requests"])
     execute(["python2.6", "setup.py", "install"])
     execute_assert_success(["python2.6", "setup.py", "install"])
+    with open(path.expanduser(path.join('~', keystonerc_admin)), 'w') as fd:
+        fd.write("export OS_USERNAME=admin\nexport OS_TENANT_NAME=admin\nexport OS_PASSWORD=admin\n" \
+                 "export OS_AUTH_URL=http://{}:35357/v2.0/\n" \
+                 "export PS1='[\u@\h \W(keystone_admin)]\$ '".format(gethostname()))
 
 
 def get_cinder_client(host="localhost"):

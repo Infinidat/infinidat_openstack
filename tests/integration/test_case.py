@@ -41,7 +41,7 @@ def fix_ip_addresses_in_openstack():
 
     execute_assert_success(['openstack-service', 'stop'])
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
-    regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'). new_ip_address)
+    regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'), new_ip_address)
 
     with open(CONFIG_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))

@@ -20,6 +20,13 @@ CINDER_LOGDIR = "/var/log/cinder"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
+def fix_ip_addresses_in_openstack_databases(old_ip_address, new_ip_address):
+    filename = 'mysql.dump'
+    execute_assert_success("mysqldump --all-databases > {}".format(filename), shell=True)
+    execute_assert_success("sed -ie s/{}/{}/g {}".format(old_ip_address, new_ip_address, filename), shell=True)
+    execute_assert_success("mysql -u root < {}".format(filename), shell=True)
+
+
 def fix_ip_addresses_in_openstack():
     # openstack is shit; it wrote the IP address we got from the DHCP when installing it in a ton of configuration files
     # now that the IP address has changed, nothing is working anymore
@@ -34,14 +41,16 @@ def fix_ip_addresses_in_openstack():
 
     execute(['openstack-service', 'stop'])
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
-    execute_assert_success('grep -rl {0} / | xargs sed -i s/{0}/{1}/g'.format(old_ip_address, new_ip_address), shell=True)
+
+    execute_assert_success('grep -rl {0} /etc | xargs sed -i s/{0}/{1}/g'.format(old_ip_address, new_ip_address), shell=True)
+    fix_ip_addresses_in_openstack_databases(old_ip_address, new_ip_address)
+
     execute_assert_success(['/etc/init.d/iptables', 'restart'])
     execute_assert_success(['/etc/init.d/mysqld', 'restart'])
     execute_assert_success(['/etc/init.d/httpd', 'restart'])
     execute_assert_success(['openstack-service', 'start'])
     with open(CONFIG_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
-
 
 @cached_function
 def prepare_host():

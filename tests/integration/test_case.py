@@ -20,10 +20,10 @@ CINDER_LOGDIR = "/var/log/cinder"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
-def fix_ip_addresses_in_openstack_databases(old_ip_address, new_ip_address):
+def fix_ip_addresses_in_openstack_databases(regex):
     filename = 'mysql.dump'
     execute_assert_success("mysqldump --all-databases > {}".format(filename), shell=True)
-    execute_assert_success("sed -ie s/{}/{}/g {}".format(old_ip_address, new_ip_address, filename), shell=True)
+    execute_assert_success("sed -ie {} {}".format(regex, filename), shell=True)
     execute_assert_success("mysql -u root < {}".format(filename), shell=True)
 
 
@@ -41,11 +41,12 @@ def fix_ip_addresses_in_openstack():
 
     execute_assert_success(['openstack-service', 'stop'])
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
+    regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'))
 
     with open(CONFIG_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
-    execute_assert_success('grep -rl {0} /etc | xargs sed -i s/{0}/{1}/g'.format(old_ip_address, new_ip_address), shell=True)
-    fix_ip_addresses_in_openstack_databases(old_ip_address, new_ip_address)
+    execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
+    fix_ip_addresses_in_openstack_databases(regex)
 
     execute_assert_success(['/etc/init.d/iptables', 'restart'])
     execute_assert_success(['/etc/init.d/mysqld', 'restart'])

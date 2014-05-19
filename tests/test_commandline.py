@@ -242,7 +242,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
             with open(self.CONFIG_FILE, 'w') as fd:
                 fd.write(before)
 
-        self.addCleanup(cls.restart_openstack)
+        self.addCleanup(self.restart_openstack)
         self.addCleanup(restore)
 
     @contextmanager

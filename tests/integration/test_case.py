@@ -4,6 +4,8 @@ from uuid import uuid4
 from mock import MagicMock
 from munch import Munch
 from unittest import SkipTest
+from urlparse import urlparse
+from socket import gethostname, gethostbyname
 from infi.execute import execute_assert_success, execute
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
@@ -15,10 +17,34 @@ from infinidat_openstack import config, scripts
 
 
 CINDER_LOGDIR = "/var/log/cinder"
+CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+
+
+def fix_ip_addresses_in_openstack():
+    # openstack is shit; it wrote the IP address we got from the DHCP when installing it in a ton of configuration files
+    # now that the IP address has changed, nothing is working anymore
+    # so we need to find the new IP address, search-and-fucking-replace it in all the files
+    # restart openatack and pray it will work
+    with open(CONFIG_FILE) as fd:
+        environment_text = fd.read()
+
+    auth_url = scripts.parse_environment(environment_text)[-1]
+    old_ip_address = urlparse(auth_url).netloc.split(':')[0]
+    new_ip_address = gethostbyname(gethostname())
+
+    execute(['openstack-service', 'stop'])
+    execute_assert_success(['rm', '-rf', '/var/log/*/*'])
+    execute_assert_success('grep -rl {0} / | xargs sed -i s/{0}/{1}/g'.format(old_ip_address, new_ip_address), shell=True)
+    execute_assert_success(['/etc/init.d/iptables', 'restart'])
+    execute_assert_success(['/etc/init.d/mysqld', 'restart'])
+    execute_assert_success(['/etc/init.d/httpd', 'restart'])
+    execute_assert_success(['openstack-service', 'start'])
+    with open(CONFIG_FILE, 'w') as fd:
+        fd.write(environment_text.replace(old_ip_address, new_ip_address))
+
 
 @cached_function
 def prepare_host():
-    from socket import gethostname
     """using cached_function to make sure this is called only once"""
     # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
     # execute(["bin/infinihost", "settings", "check", "--auto-fix"])
@@ -27,10 +53,7 @@ def prepare_host():
     execute(["easy_install-2.6", "-U", "requests"])
     execute(["python2.6", "setup.py", "install"])
     execute_assert_success(["python2.6", "setup.py", "install"])
-    with open(path.expanduser(path.join('~', keystonerc_admin)), 'w') as fd:
-        fd.write("export OS_USERNAME=admin\nexport OS_TENANT_NAME=admin\nexport OS_PASSWORD=admin\n" \
-                 "export OS_AUTH_URL=http://{}:35357/v2.0/\n" \
-                 "export PS1='[\u@\h \W(keystone_admin)]\$ '".format(gethostname()))
+    fix_ip_addresses_in_openstack()
 
 
 def get_cinder_client(host="localhost"):

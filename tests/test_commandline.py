@@ -214,11 +214,17 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
         execute_assert_success(["rpm", "-e", "infinidat_openstack"])
 
     @classmethod
+    def restart_openstack(cls):
+        execute(['openstack-service', 'stop'])
+        execute_assert_success(['openstack-service', 'start'])
+
+    @classmethod
     def setUpClass(cls):
         cls.install_package()
         if not path.exists(cls.EXECUTABLE):
             raise SkipTest("openstack plugin not installed")
         cls.setup_infinibox()
+        cls.restart_openstack()
 
     @classmethod
     def tearDownClass(cls):

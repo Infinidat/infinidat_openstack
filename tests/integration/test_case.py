@@ -39,9 +39,11 @@ def fix_ip_addresses_in_openstack():
     old_ip_address = urlparse(auth_url).netloc.split(':')[0]
     new_ip_address = gethostbyname(gethostname())
 
-    execute(['openstack-service', 'stop'])
+    execute_assert_success(['openstack-service', 'stop'])
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
 
+    with open(CONFIG_FILE, 'w') as fd:
+        fd.write(environment_text.replace(old_ip_address, new_ip_address))
     execute_assert_success('grep -rl {0} /etc | xargs sed -i s/{0}/{1}/g'.format(old_ip_address, new_ip_address), shell=True)
     fix_ip_addresses_in_openstack_databases(old_ip_address, new_ip_address)
 
@@ -49,8 +51,6 @@ def fix_ip_addresses_in_openstack():
     execute_assert_success(['/etc/init.d/mysqld', 'restart'])
     execute_assert_success(['/etc/init.d/httpd', 'restart'])
     execute_assert_success(['openstack-service', 'start'])
-    with open(CONFIG_FILE, 'w') as fd:
-        fd.write(environment_text.replace(old_ip_address, new_ip_address))
 
 
 @cached_function

@@ -214,9 +214,9 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
         execute_assert_success(["rpm", "-e", "infinidat_openstack"])
 
     @classmethod
-    def restart_openstack(cls):
-        execute(['openstack-service', 'stop'])
-        execute_assert_success(['openstack-service', 'start'])
+    def restart_openstack_cinder(cls):
+        execute(['openstack-service', 'stop', 'cinder'])
+        execute_assert_success(['openstack-service', 'start', 'cinder'])
 
     @classmethod
     def setUpClass(cls):
@@ -224,7 +224,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
         if not path.exists(cls.EXECUTABLE):
             raise SkipTest("openstack plugin not installed")
         cls.setup_infinibox()
-        cls.restart_openstack()
+        cls.restart_openstack_cinder()
 
     @classmethod
     def tearDownClass(cls):
@@ -242,7 +242,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
             with open(self.CONFIG_FILE, 'w') as fd:
                 fd.write(before)
 
-        self.addCleanup(self.restart_openstack)
+        self.addCleanup(self.restart_openstack_cinder)
         self.addCleanup(restore)
 
     @contextmanager

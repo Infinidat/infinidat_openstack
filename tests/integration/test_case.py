@@ -52,6 +52,7 @@ def fix_ip_addresses_in_openstack():
     with open(CONFIG_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
 
+
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""

@@ -20,11 +20,11 @@ CINDER_LOGDIR = "/var/log/cinder"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
-def fix_ip_addresses_in_openstack_databases(regex):
+def fix_ip_addresses_in_openstack_keystone_database(regex):
     filename = 'mysql.dump'
-    execute_assert_success("mysqldump --all-databases > {}".format(filename), shell=True)
+    execute_assert_success("mysqldump keystone > {}".format(filename), shell=True)
     execute_assert_success("sed -ie {} {}".format(regex, filename), shell=True)
-    execute_assert_success("mysql -u root < {}".format(filename), shell=True)
+    execute_assert_success("mysql -u root -D keystone < {}".format(filename), shell=True)
 
 
 def fix_ip_addresses_in_openstack():
@@ -46,11 +46,8 @@ def fix_ip_addresses_in_openstack():
     with open(CONFIG_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
     execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
-    fix_ip_addresses_in_openstack_databases(regex)
+    fix_ip_addresses_in_openstack_keystone_database(regex)
 
-    execute_assert_success(['/etc/init.d/iptables', 'restart'])
-    execute_assert_success(['/etc/init.d/mysqld', 'restart'])
-    execute_assert_success(['/etc/init.d/httpd', 'restart'])
     execute_assert_success(['openstack-service', 'start'])
 
 
@@ -59,12 +56,12 @@ def prepare_host():
     """using cached_function to make sure this is called only once"""
     # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
     # execute(["bin/infinihost", "settings", "check", "--auto-fix"])
+    fix_ip_addresses_in_openstack()
     execute(["yum", "reinstall", "-y", "python-setuptools"])
     execute(["yum", "install",   "-y", "python-devel"])
     execute(["easy_install-2.6", "-U", "requests"])
     execute(["python2.6", "setup.py", "install"])
     execute_assert_success(["python2.6", "setup.py", "install"])
-    fix_ip_addresses_in_openstack()
 
 
 def get_cinder_client(host="localhost"):

@@ -4,6 +4,8 @@ from uuid import uuid4
 from mock import MagicMock
 from munch import Munch
 from unittest import SkipTest
+from urlparse import urlparse
+from socket import gethostname, gethostbyname
 from infi.execute import execute_assert_success, execute
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
@@ -15,12 +17,46 @@ from infinidat_openstack import config, scripts
 
 
 CINDER_LOGDIR = "/var/log/cinder"
+CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+
+
+def fix_ip_addresses_in_openstack_keystone_database(regex):
+    filename = 'mysql.dump'
+    execute_assert_success("mysqldump keystone > {}".format(filename), shell=True)
+    execute_assert_success("sed -ie {} {}".format(regex, filename), shell=True)
+    execute_assert_success("mysql -u root -D keystone < {}".format(filename), shell=True)
+
+
+def fix_ip_addresses_in_openstack():
+    # openstack is shit; it wrote the IP address we got from the DHCP when installing it in a ton of configuration files
+    # now that the IP address has changed, nothing is working anymore
+    # so we need to find the new IP address, search-and-fucking-replace it in all the files
+    # restart openatack and pray it will work
+    with open(CONFIG_FILE) as fd:
+        environment_text = fd.read()
+
+    auth_url = scripts.parse_environment(environment_text)[-1]
+    old_ip_address = urlparse(auth_url).netloc.split(':')[0]
+    new_ip_address = gethostbyname(gethostname())
+
+    execute_assert_success(['openstack-service', 'stop'])
+    execute_assert_success(['rm', '-rf', '/var/log/*/*'])
+    regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'), new_ip_address)
+
+    with open(CONFIG_FILE, 'w') as fd:
+        fd.write(environment_text.replace(old_ip_address, new_ip_address))
+    execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
+    fix_ip_addresses_in_openstack_keystone_database(regex)
+
+    execute_assert_success(['openstack-service', 'start'])
+
 
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""
     # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
     # execute(["bin/infinihost", "settings", "check", "--auto-fix"])
+    fix_ip_addresses_in_openstack()
     execute(["yum", "reinstall", "-y", "python-setuptools"])
     execute(["yum", "install",   "-y", "python-devel"])
     execute(["easy_install-2.6", "-U", "requests"])

@@ -36,7 +36,7 @@ def logfile_context(logfile_path):
 @contextmanager
 def logs_context(logs_dir):
     from glob import glob
-    glob_path = pat.join(logs_dir, '*.log')
+    glob_path = path.join(logs_dir, '*.log')
     contexts = [logfile_context(item) for item in glob(glob_path)]
     [context.__enter__() for context in contexts]
     try:

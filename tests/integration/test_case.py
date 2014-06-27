@@ -48,6 +48,7 @@ def fix_ip_addresses_in_openstack():
     execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
     fix_ip_addresses_in_openstack_keystone_database(regex)
 
+    execute(["pkill", "-9", "keystone"])
     execute_assert_success(['openstack-service', 'start'])
 
 

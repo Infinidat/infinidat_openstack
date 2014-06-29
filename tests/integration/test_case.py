@@ -17,7 +17,32 @@ from infinidat_openstack import config, scripts
 
 
 CINDER_LOGDIR = "/var/log/cinder"
+KEYSTONE_LOGDIR = "/var/log/keystone"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+
+
+@contextmanager
+def logfile_context(logfile_path):
+    with open(logfile_path) as fd:
+        fd.read()
+        try:
+            yield
+        finally:
+            print '--- {} ---'.format(logfile_path)
+            print fd.read()
+            print '--- end ---'.format(logfile_path)
+
+
+@contextmanager
+def logs_context(logs_dir):
+    from glob import glob
+    glob_path = path.join(logs_dir, '*.log')
+    contexts = [logfile_context(item) for item in glob(glob_path)]
+    [context.__enter__() for context in contexts]
+    try:
+        yield
+    finally:
+        [context.__exit__(None, None, None) for context in contexts]
 
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):
@@ -48,7 +73,9 @@ def fix_ip_addresses_in_openstack():
     execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
     fix_ip_addresses_in_openstack_keystone_database(regex)
 
-    execute_assert_success(['openstack-service', 'start'])
+    execute(["pkill", "-9", "keystone"])
+    with logs_context(KEYSTONE_LOGDIR):
+        execute_assert_success(['openstack-service', 'start'])
 
 
 @cached_function
@@ -240,25 +267,9 @@ class RealTestCaseMixin(object):
             pass
 
     @contextmanager
-    def logfile_context(self, logfile_path):
-        with open(logfile_path) as fd:
-            fd.read()
-            try:
-                yield
-            finally:
-                print '--- {} ---'.format(logfile_path)
-                print fd.read()
-                print '--- end ---'.format(logfile_path)
-
-    @contextmanager
     def cinder_logs_context(self):
-        from glob import glob
-        contexts = [self.logfile_context(item) for item in glob(path.join(CINDER_LOGDIR, '*.log'))]
-        [context.__enter__() for context in contexts]
-        try:
+        with logs_context(CINDER_LOGDIR):
             yield
-        finally:
-            [context.__exit__(None, None, None) for context in contexts]
 
     @contextmanager
     def cinder_context(self, infinipy, pool):

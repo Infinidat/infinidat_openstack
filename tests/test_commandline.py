@@ -179,7 +179,7 @@ class MockInfiniBoxMixin(object):
         cls.simulator = Simulator()
         cls.simulator.set_serial(12345)
         cls.simulator.activate()
-        cls.infinipy = System(cls.simulator)
+        cls.infinipy = System(cls.simulator, username='admin', password='123456')
 
     @classmethod
     def teardown_infinibox(cls):

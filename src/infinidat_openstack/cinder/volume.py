@@ -2,11 +2,11 @@ from oslo.config import cfg
 try:
     from cinder.openstack.common import log as logging
     from cinder.openstack.common.gettextutils import _ as translate
-    from cinder.volume.drivers.san import san
+    from cinder.volume import drivers
     from cinder import exception
 except (ImportError, NameError):  # importing with just python hits NameErorr from the san module, the _ trick
     from .mock import logging, translate
-    from . import mock as san
+    from . import mock as drivers
     from . import mock as exception
 
 from contextlib import contextmanager
@@ -96,7 +96,7 @@ def get_powertools_version():
         return '0'
 
 
-class InfiniboxVolumeDriver(san.SanDriver):
+class InfiniboxVolumeDriver(drivers.VolumeDriver):
     VERSION = '1.0'
 
     def __init__(self, *args, **kwargs):
@@ -144,15 +144,36 @@ class InfiniboxVolumeDriver(san.SanDriver):
         # connector is a dict containing information about the connection. For example:
         # connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
         #            u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
-        self._assert_connector_has_wwpns(connector)
+
+        self._assert_connector(connector)
 
         infinidat_volume = self._find_volume(cinder_volume)
+        # if connector.get(u'initiator'):
+
+            # TODO some iSCSI drivers handle the iSCSI connection here, some dont
+            # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
+            # if not self._iscsi_gateway_exists():
+                # raise error
+            # else:
+                # self._ensure_connected_to_iscsi_gateway()
+
+            # host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            # self._set_host_metadata(host)
+            # lun = host.map_volume(infinidat_volume)
+            # access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+
+            # TODO do we wait a fixed time for the volume to be exposed via the gateway, or do we and API to poll it?
+
+            # TODO the interface states we need to return iSCSI target info but we have several, what do we do?
+            # return dict(driver_volume_type='iscsi')
+
         for wwpn in connector[u'wwpns']:
             host = self._find_or_create_host_by_wwpn(wwpn)
             self._set_host_metadata(host)
             lun = host.map_volume(infinidat_volume)
-            target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+            target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
+
         # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
         return dict(driver_volume_type='fibre_channel',
                     data=dict(target_discovered=False, target_wwn=target_wwn, target_lun=lun, access_mode=access_mode))
@@ -160,9 +181,23 @@ class InfiniboxVolumeDriver(san.SanDriver):
     @_infinipy_to_cinder_exceptions
     def terminate_connection(self, cinder_volume, connector, force=False):
         from infinipy.system.exceptions import NoObjectFound
-        self._assert_connector_has_wwpns(connector)
+        self._assert_connector(connector)
 
         infinidat_volume = self._find_volume(cinder_volume)
+
+        # if connector.get(u'initiator'):
+
+            # try:
+                # host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            # except:
+                # continue
+            # self._set_host_metadata(host)
+            # host.unmap_volume(infinidat_volume, force=force)
+
+            # TODO some iSCSI drivers handle the iSCSI connection here, some dont
+            # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
+            # self._disconnect_from_iscsi_gateway_if_unused()
+
         for wwpn in connector[u'wwpns']:
             try:
                 host = self._find_host_by_wwpn(wwpn)
@@ -304,7 +339,13 @@ class InfiniboxVolumeDriver(san.SanDriver):
         infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))
         infinidat_volume.set_metadata("driver_version", str(self.VERSION))
 
-    def _assert_connector_has_wwpns(self, connector):
+    def _assert_connector(self, connector):
+        # if
+        # there are WWPNs
+        # XOR
+        # there's iqn but AND iSCSI gateway detected and reachable
+        # then we're ok
+        # else raise exception
         if not u'wwpns' in connector or not connector[u'wwpns']:
             LOG.warn("no WWPN was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('can map a volume only to WWPN, but no WWPN was received'))

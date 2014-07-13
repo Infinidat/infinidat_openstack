@@ -257,8 +257,8 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         stderr = StringIO()
         stdout = StringIO()
 
-        with patch(_admin"openstack.scripts._print", side_effect=_print):
-            with patch(_admin"openstack.scripts.TRACEBACK_FILE", new=stderr):
+        with patch("infinidat_openstack.scripts._print", side_effect=_print):
+            with patch("infinidat_openstack.scripts.TRACEBACK_FILE", new=stderr):
                 yield stdout, stderr
 
     @contextmanager
@@ -290,13 +290,13 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         return pid
 
     def test_catching_general_exception(self):
-        with patch(_admin"openstack.scripts.handle_commands", side_effect=RuntimeError()):
+        with patch("infinidat_openstack.scripts.handle_commands", side_effect=RuntimeError()):
             pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("RuntimeError", pid.get_stderr())
             self.assertIn("ERROR: Caught unhandled exception", pid.get_stderr())
 
     def test_connection_to_cinderclient_fails(self):
-        with patch(_admin"openstack.scripts.get_cinder_client", side_effect=Exception()):
+        with patch("infinidat_openstack.scripts.get_cinder_client", side_effect=Exception()):
             pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("failed to connect to cinder service", pid.get_stderr())
 
@@ -315,7 +315,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        with patch(_admin"openstack.scripts.get_infinipy_from_arguments", side_effect=Exception("error")):
+        with patch("infinidat_openstack.scripts.get_infinipy_from_arguments", side_effect=Exception("error")):
             pid = self.assert_command(["volume-backend", "list"], stderr='')
         format_kwargs = dict(system_name=self.infinipy.get_name(), pool_id=pool.get_id())
         self.assertEquals(EXPECTED_FAILURE.format(**format_kwargs).lstrip(), pid.get_stdout())

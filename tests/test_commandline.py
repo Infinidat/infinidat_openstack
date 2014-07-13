@@ -55,7 +55,7 @@ class CommandlineTestsMixin(object):
 
     def test_system_list(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         pid = self.assert_command(["volume-backend", "list"], stderr='')
@@ -66,7 +66,7 @@ class CommandlineTestsMixin(object):
 
     def test_set_and_remove(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         args = ["volume-backend", "remove", self.infinipy.get_name(), str(pool.get_id())]
@@ -74,7 +74,7 @@ class CommandlineTestsMixin(object):
 
     def test_set_and_toggle_enable(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         args = ["volume-backend", "enable", self.infinipy.get_name(), str(pool.get_id())]
@@ -121,7 +121,7 @@ class CommandlineTestsMixin(object):
 
     def test_update_after_pool_rename(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         pool.set_name("foo")
@@ -130,7 +130,7 @@ class CommandlineTestsMixin(object):
 
     def test_update_all(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         args = ["volume-backend", "update", "all"]
@@ -200,7 +200,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
 
     @classmethod
     def remove_package(cls):
-        execute_assert_success(["rpm", "-e", "infinidat_openstack"])
+        execute_assert_success(["rpm", "-e", _admin"openstack"])
 
     @classmethod
     def setUpClass(cls):
@@ -257,14 +257,14 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         stderr = StringIO()
         stdout = StringIO()
 
-        with patch("infinidat_openstack.scripts._print", side_effect=_print):
-            with patch("infinidat_openstack.scripts.TRACEBACK_FILE", new=stderr):
+        with patch(_admin"openstack.scripts._print", side_effect=_print):
+            with patch(_admin"openstack.scripts.TRACEBACK_FILE", new=stderr):
                 yield stdout, stderr
 
     @contextmanager
     def mock_clients_context(self):
         from infinipy import System
-        infinipy_side_effect = lambda address, username="infinidat", password="123456": System(self.simulator, username=username, password=password)
+        infinipy_side_effect = lambda address, username="admin", password="123456": System(self.simulator, username=username, password=password)
         with patch("infinipy.System", side_effect=infinipy_side_effect) as infinipy:
             with patch("cinderclient.v1.client.Client"):
                 yield
@@ -290,19 +290,19 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         return pid
 
     def test_catching_general_exception(self):
-        with patch("infinidat_openstack.scripts.handle_commands", side_effect=RuntimeError()):
+        with patch(_admin"openstack.scripts.handle_commands", side_effect=RuntimeError()):
             pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("RuntimeError", pid.get_stderr())
             self.assertIn("ERROR: Caught unhandled exception", pid.get_stderr())
 
     def test_connection_to_cinderclient_fails(self):
-        with patch("infinidat_openstack.scripts.get_cinder_client", side_effect=Exception()):
+        with patch(_admin"openstack.scripts.get_cinder_client", side_effect=Exception()):
             pid = self.assert_command(["volume-backend", "list"], return_code=1)
             self.assertIn("failed to connect to cinder service", pid.get_stderr())
 
     def test_system_list__exact_output(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         pid = self.assert_command(["volume-backend", "list"], stderr='')
@@ -312,10 +312,10 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_system_list__password_changed(self):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", pool.get_name()]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", pool.get_name()]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
-        with patch("infinidat_openstack.scripts.get_infinipy_from_arguments", side_effect=Exception("error")):
+        with patch(_admin"openstack.scripts.get_infinipy_from_arguments", side_effect=Exception("error")):
             pid = self.assert_command(["volume-backend", "list"], stderr='')
         format_kwargs = dict(system_name=self.infinipy.get_name(), pool_id=pool.get_id())
         self.assertEquals(EXPECTED_FAILURE.format(**format_kwargs).lstrip(), pid.get_stdout())
@@ -327,7 +327,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_set__invalid_pool_name(self):
-        args = ["volume-backend", "set", self.infinipy.get_name(), "infinidat", "123456", "foo"]
+        args = ["volume-backend", "set", self.infinipy.get_name(), "admin", "123456", "foo"]
         stderr = "InfiniBox API failed: No object matched criteria: {'name': 'foo'}\n"
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 

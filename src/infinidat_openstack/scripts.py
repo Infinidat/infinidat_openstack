@@ -145,7 +145,7 @@ def handle_commands(arguments, config_file):
                 _print("failed to enable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             config.enable(config_parser, system['key'])
-            infinipy = get_infinipy_from_arguments(arguments)
+            infinipy = get_infinipy_for_system(system)
             pool = infinipy.objects.Pool.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())

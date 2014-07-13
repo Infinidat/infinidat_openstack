@@ -200,7 +200,7 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
 
     @classmethod
     def remove_package(cls):
-        execute_assert_success(["rpm", "-e", _admin"openstack"])
+        execute_assert_success(["rpm", "-e", "infinidat_openstack"])
 
     @classmethod
     def setUpClass(cls):

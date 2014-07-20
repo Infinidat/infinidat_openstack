@@ -257,7 +257,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             # TODO the interface states we need to return iSCSI target info but we have several, what do we do?
             return dict(driver_volume_type='iscsi', 
                 data=dict(
-                    target_discovered=True, # TODO: What should we return here?
+                    target_discovered=True,
                     volume_id=cinder_volume.id, 
                     access_mode=access_mode,
                     target_portal=target_portal,

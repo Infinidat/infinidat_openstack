@@ -194,11 +194,11 @@ class OpenStackTestCase(TestCase):
     @contextmanager
     def cinder_mapping_context(self, cinder_volume):
         from socket import gethostname
-        from infi.hbaapi import get_ports_collection
-        fc_ports = get_ports_collection().get_ports()
-        connector = dict(initiator='iqn.sometthing:0102030405060708',
-                         host=gethostname(), ip='127.0.0.1',
-                         wwns=[str(port.node_wwn) for port in fc_ports], wwpns=[str(port.port_wwn) for port in fc_ports])
+        connector = dict(initiator=self.get_iscsi_initiator(),
+                         host=gethostname(), 
+                         ip='127.0.0.1',
+                         wwns=self.get_wwns(), 
+                         wwpns=self.get_wwns())
         connection = cinder_volume.initialize_connection(cinder_volume, connector)
         yield connection
         cinder_volume.terminate_connection(cinder_volume, connector)
@@ -214,6 +214,30 @@ class OpenStackTestCase(TestCase):
         cinder_clone = self.create_clone(cinder_volume, timeout)
         yield cinder_clone
         self.delete_cinder_object(cinder_clone, timeout)
+
+    def get_wwps(self):
+        raise NotImplementedError;
+
+    def get_iscsi_initiator(self):
+        raise NotImplementedError;
+
+
+class OpenStackFibreChannelTestCase(OpenStackTestCase):
+    def get_wwns(self):
+        from infi.hbaapi import get_ports_collection
+        fc_ports = get_ports_collection().get_ports()
+        return [str(port.port_wwn) for port in fc_ports]    
+
+    def get_iscsi_initiator(self):
+        return None
+
+
+class OpenStackISCSITestCase(OpenStackTestCase):
+    def get_iscsi_initiator(self):
+        return 'iqn.sometthing:0102030405060708'
+
+    def get_wwns(self):
+        return None
 
 
 class RealTestCaseMixin(object):

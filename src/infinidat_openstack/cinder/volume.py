@@ -211,7 +211,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         while time() - start < ISCSI_GW_TIMEOUT_SEC:
 
             for host in self.system.get_hosts():
-                if host.get_metadata().get('iscsi_manager_portal') and host.get_metadata().get('iscsi_manager_portal'):
+                if host.get_metadata().get('iscsi_manager_portal'):
                     return host
 
             sleep(ISCSI_GW_TIME_BETWEEN_RETRIES_SEC)
@@ -296,6 +296,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             # TODO some iSCSI drivers handle the iSCSI connection here, some dont
             # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
             # self._disconnect_from_iscsi_gateway_if_unused()
+
+            sleep(ISCSI_GW_TIMEOUT_SEC);
 
         # This case handles fibreChannel
         else:

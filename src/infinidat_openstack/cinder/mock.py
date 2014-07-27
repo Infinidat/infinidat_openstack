@@ -3,7 +3,7 @@ import logging
 
 class VolumeDriver(object):
     def __init__(self, *args, **kwargs):
-        super(SanDriver, self).__init__()
+        super(VolumeDriver, self).__init__()
         self.configuration = kwargs.get('configuration', None)
 
 

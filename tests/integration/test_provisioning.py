@@ -2,6 +2,12 @@ import test_case
 from infi.unittest import parameters
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 
+def setup_module():
+    test_case.prepare_host()
+
+def teardown_module():
+    pass
+
 
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
@@ -135,10 +141,15 @@ class ProvisioningTestsMixin(object):
         poll()
 
 
-class ProvisioningTestsMixin_Real(test_case.OpenStackTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+# HACK: The FibreChannel test should run before the iSCSI test (Nose run the tests alphabetically)
+
+class AAA_ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+    pass
+
+class AAB_ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     pass
 
 
-class ProvisioningTestsMixin_Mock(test_case.OpenStackTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
+class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
     pass
 

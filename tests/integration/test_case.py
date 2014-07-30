@@ -32,7 +32,6 @@ def logfile_context(logfile_path):
             print fd.read()
             print '--- end ---'.format(logfile_path)
 
-
 @contextmanager
 def logs_context(logs_dir):
     from glob import glob
@@ -43,7 +42,6 @@ def logs_context(logs_dir):
         yield
     finally:
         [context.__exit__(None, None, None) for context in contexts]
-
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):
     filename = 'mysql.dump'
@@ -76,7 +74,6 @@ def fix_ip_addresses_in_openstack():
     with logs_context(KEYSTONE_LOGDIR):
         execute_assert_success(['openstack-service', 'start'])
 
-
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""
@@ -96,7 +93,6 @@ def get_cinder_client(host="localhost"):
     from cinderclient.v1 import client
     return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
 
-
 def restart_cinder():
     execute_assert_success(["openstack-service", "restart", "cinder-volume"])
     sleep(10) # give time for the volume drive to come up, no APIs to checking this
@@ -104,6 +100,7 @@ def restart_cinder():
 
 class NotReadyException(Exception):
     pass
+
 
 class NoFCPortsException(Exception):
     pass
@@ -113,13 +110,9 @@ class OpenStackTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
-        cls.do_setup()
-
-    @classmethod
-    def do_setup(cls):
         cls.setup_infinibox()
         cls.setup_host()
-        cls.zone_localhost_with_infinibox()
+        cls.zone_localhost_with_infinibox()        
 
     @classmethod
     def tearDownClass(cls):
@@ -446,21 +439,19 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
 
     @classmethod
-    def do_setup(cls): 
-        cls.setup_infinibox()
-        cls.setup_host()
-        cls.zone_localhost_with_infinibox()
+    def setUpClass(cls):
+        super(OpenStackISCSITestCase, cls).setUpClass()
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
         cls.create_host_object_for_iscsi_client()
-        cls.connect_to_iscsi_gw()
+        cls.connect_to_iscsi_manager()
         cls.iscsi_manager_poll()
 
     @classmethod
     def tearDownClass(cls):
-        cls.disconnect_from_iscsi_gw()
-        cls.unconfigure_iscsi_manager()
+        cls.disconnect_from_iscsi_manager()
+        cls.destroy_iscsi_manager_configuration()
         try:
             cls.host.delete()
         except:
@@ -469,10 +460,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def create_host_object_for_iscsi_client(cls):
-
         def _int_to_16_bit_hex(n):
             return hex(n % (2**16-1))[2:].zfill(4)
-
 
         def _int_to_12_bit_wwn_format(n):
             return hex(n % (2**12-1))[2:].zfill(3)
@@ -504,12 +493,12 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         FcManager().create_zone([host_wwn, system_wwn])
 
     @classmethod
-    def connect_to_iscsi_gw(cls):
+    def connect_to_iscsi_manager(cls):
         execute(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
         execute(["iscsiadm", "-m", "node" , "-L" ,"all"])
 
     @classmethod
-    def disconnect_from_iscsi_gw(cls):
+    def disconnect_from_iscsi_manager(cls):
         execute(["iscsiadm", "-m", "node" , "-U" ,"all"])
 
     @classmethod
@@ -524,7 +513,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def configure_iscsi_manager(cls):
-        cls.unconfigure_iscsi_manager()
+        cls.destroy_iscsi_manager_configuration()
         execute(["iscsi-manager", "config", "init"])
         execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()        
@@ -538,7 +527,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         open("./iscsi-poll.sh", 'w').write(poll_script)
         execute(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
-
 
     @classmethod
     def get_iscsi_port(cls):
@@ -558,13 +546,12 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         port_id = hex_port & 0xFF
         return node_id, port_id
 
-
     @classmethod
     def iscsi_manager_poll(cls):
         execute_assert_success(["iscsi-manager", "poll"])
 
     @classmethod
-    def unconfigure_iscsi_manager(cls):
+    def destroy_iscsi_manager_configuration(cls):
         execute(['pkill -f "sh ./iscsi-poll.sh"'], shell=True)
         execute(["rm", "-rf", "./iscsi-poll.sh"])
         execute(["killall", "iscsi-manager"])

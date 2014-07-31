@@ -115,8 +115,8 @@ class OpenStackTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
-        cls.setup_infinibox()
         cls.setup_host()
+        cls.setup_infinibox()
         cls.zone_localhost_with_infinibox()
 
     @classmethod
@@ -284,7 +284,7 @@ class RealTestCaseMixin(object):
     @contextmanager
     def cinder_context(self, infinipy, pool):
         with config.get_config_parser(write_on_exit=True) as config_parser:
-            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "infinidat", "123456")
+            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456")
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
@@ -334,7 +334,7 @@ class MockTestCaseMixin(object):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
         volume_driver_config.update(san_ip=infinipy.get_hostname(),
                                     infinidat_pool_id=pool.get_id(),
-                                    san_login="infinidat", san_password="123456")
+                                    san_login="admin", san_password="123456")
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
@@ -522,7 +522,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
         execute(["iscsi-manager", "config", "init"])
-        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
+        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "admin", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
@@ -556,7 +556,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def iscsi_manager_poll(cls):
-        sleep(cls.ISCSI_GW_SLEEP_TIME)
+        sleep(cls.ISCSI_GW_SLEEP_TIME+5)
 
     @classmethod
     def destroy_iscsi_manager_configuration(cls):

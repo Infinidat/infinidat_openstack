@@ -115,8 +115,8 @@ class OpenStackTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
-        cls.setup_infinibox()
         cls.setup_host()
+        cls.setup_infinibox()
         cls.zone_localhost_with_infinibox()
 
     @classmethod
@@ -522,7 +522,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
         execute(["iscsi-manager", "config", "init"])
-        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
+        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "admin", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
@@ -556,7 +556,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def iscsi_manager_poll(cls):
-        sleep(cls.ISCSI_GW_SLEEP_TIME)
+        sleep(cls.ISCSI_GW_SLEEP_TIME+5)
 
     @classmethod
     def destroy_iscsi_manager_configuration(cls):

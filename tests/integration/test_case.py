@@ -32,6 +32,7 @@ def logfile_context(logfile_path):
             print fd.read()
             print '--- end ---'.format(logfile_path)
 
+
 @contextmanager
 def logs_context(logs_dir):
     from glob import glob
@@ -43,11 +44,13 @@ def logs_context(logs_dir):
     finally:
         [context.__exit__(None, None, None) for context in contexts]
 
+
 def fix_ip_addresses_in_openstack_keystone_database(regex):
     filename = 'mysql.dump'
     execute_assert_success("mysqldump keystone > {}".format(filename), shell=True)
     execute_assert_success("sed -ie {} {}".format(regex, filename), shell=True)
     execute_assert_success("mysql -u root -D keystone < {}".format(filename), shell=True)
+
 
 def fix_ip_addresses_in_openstack():
     # openstack is shit; it wrote the IP address we got from the DHCP when installing it in a ton of configuration files
@@ -74,10 +77,10 @@ def fix_ip_addresses_in_openstack():
     with logs_context(KEYSTONE_LOGDIR):
         execute_assert_success(['openstack-service', 'start'])
 
+
 @cached_function
 def prepare_host():
     """using cached_function to make sure this is called only once"""
-    # we will be using single paths, in the tests for now, so no need to spend time on configuring multipath
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
     fix_ip_addresses_in_openstack()
     execute(["yum", "reinstall", "-y", "python-setuptools"])
@@ -86,12 +89,14 @@ def prepare_host():
     execute(["python2.6", "setup.py", "install"])
 
     # This line actually installs the driver into openstack's python
-    execute_assert_success(["python2.6", "setup.py", "install"]) 
+    execute_assert_success(["python2.6", "setup.py", "install"])
     execute_assert_success(['openstack-service', 'restart'])
+
 
 def get_cinder_client(host="localhost"):
     from cinderclient.v1 import client
     return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
+
 
 def restart_cinder():
     execute_assert_success(["openstack-service", "restart", "cinder-volume"])
@@ -112,7 +117,7 @@ class OpenStackTestCase(TestCase):
         super(OpenStackTestCase, cls).setUpClass()
         cls.setup_infinibox()
         cls.setup_host()
-        cls.zone_localhost_with_infinibox()        
+        cls.zone_localhost_with_infinibox()
 
     @classmethod
     def tearDownClass(cls):
@@ -214,7 +219,7 @@ class OpenStackTestCase(TestCase):
         self.delete_cinder_object(cinder_clone, timeout)
 
     def get_connector(self):
-        raise NotImplementedError;
+        raise NotImplementedError()
 
 
 class RealTestCaseMixin(object):
@@ -255,12 +260,12 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_infinibox(cls):
-        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds = 3600)
+        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600)
         cls.infinipy = cls.system.get_infinipy()
+        cls.infinipy.purge()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
-        cls.infinipy.purge()
         cls.zoning.purge_all_related_zones()
         cls.zoning.zone_host_with_system__single_path(cls.system)
 
@@ -428,9 +433,9 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     def get_connector(self):
         return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
-                         host=gethostname(), 
+                         host=gethostname(),
                          ip='127.0.0.1',
-                         wwns=None, 
+                         wwns=None,
                          wwpns=None)
 
     @classmethod
@@ -468,7 +473,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
         NPIV_64BIT_WWPN_TEMPLATE = "2{12bit_host_counter}{24bit_oui}{16bit_system_serial}{8bit_gateway_id}"
         INFINIDAT_OUI = "742b0f"
-        
+
         node_id, port_id = cls.get_iscsi_port()
         gateway_id = str(node_id)+str(port_id)
 
@@ -516,7 +521,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         cls.destroy_iscsi_manager_configuration()
         execute(["iscsi-manager", "config", "init"])
         execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
-        node_id, port_id = cls.get_iscsi_port()        
+        node_id, port_id = cls.get_iscsi_port()
         execute(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
         while true; do
@@ -530,6 +535,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def get_iscsi_port(cls):
+        # TODO refactor using infi.stroagemodel
         import re
         sg_inq_output = execute(["""
             for i in `lsscsi | grep "NFINIDAT"| awk "{print $1}" | tr -d "[]"`;
@@ -556,13 +562,15 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["rm", "-rf", "./iscsi-poll.sh"])
         execute(["killall", "iscsi-manager"])
         execute(["rm","-rf","./poll.lock"])
+        cls.delete_npiv_ports_created_by_iscsi_manager()
 
-        # Delete NPIV port created by the gw
+    @classmethod
+    def delete_npiv_ports_created_by_iscsi_manager(cls):
         import os
         FC_HOST_DIR = '/sys/class/fc_host'
-        virtual_fc_hosts = [host for host in os.listdir(FC_HOST_DIR) 
+        virtual_fc_hosts = [host for host in os.listdir(FC_HOST_DIR)
             if 'NPIV VPORT' in open(os.path.join(FC_HOST_DIR, host, 'port_type')).read()]
-        physical_fc_host = [host for host in os.listdir(FC_HOST_DIR) 
+        physical_fc_host = [host for host in os.listdir(FC_HOST_DIR)
             if 'NPIV VPORT' not in open(os.path.join(FC_HOST_DIR, host, 'port_type')).read()][0]
         vport_delete_file_name = os.path.join(FC_HOST_DIR, physical_fc_host, 'vport_delete')
         for virtual_fc_host in virtual_fc_hosts:
@@ -577,7 +585,7 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
         fc_ports = get_ports_collection().get_ports()
         wwns = [str(port.port_wwn) for port in fc_ports]
         return dict(initiator=None,
-                         host=gethostname(), 
+                         host=gethostname(),
                          ip='127.0.0.1',
-                         wwns=wwns, 
+                         wwns=wwns,
                          wwpns=wwns)

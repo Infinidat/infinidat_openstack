@@ -53,6 +53,7 @@ STATS_VENDOR = 'Infinidat'
 STATS_PROTOCOL = 'iSCSI/FC' # Nothing is actually done with this field
 INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
+# TODO extract these to cinder configuration
 ISCSI_GW_TIMEOUT_SEC = 15
 ISCSI_GW_TIME_BETWEEN_RETRIES_SEC = 1
 
@@ -253,34 +254,30 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
             self._set_host_metadata(host)
 
-            # TODO: Should we check if mapped or leave the responsibility to the user/openstack?
-            if infinidat_volume.is_mapped():
-                infinidat_volume.unmap()
             lun = host.map_volume(infinidat_volume)
 
-            access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
-
             # TODO do we wait a fixed time for the volume to be exposed via the gateway, or do we and API to poll it?
-            sleep(ISCSI_GW_TIMEOUT_SEC);
+            sleep(ISCSI_GW_TIMEOUT_SEC)
 
             target_host = self._wait_for_iscsi_gw_host()
-            target_iqn = target_host.get_metadata().get('iscsi_manager_iqn');
-            target_portal = target_host.get_metadata().get('iscsi_manager_portal');
+            target_iqn = target_host.get_metadata().get('iscsi_manager_iqn')
+            access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+            target_portal = target_host.get_metadata().get('iscsi_manager_portal')
 
             # TODO the interface states we need to return iSCSI target info but we have several, what do we do?
-            return dict(driver_volume_type='iscsi', 
-                data=dict(
-                    target_discovered=True,
-                    volume_id=cinder_volume.id, 
-                    access_mode=access_mode,
-                    target_portal=target_portal,
-                    target_iqn=target_iqn,
-                    target_lun = lun,
-                    ))
+            return dict(driver_volume_type='iscsi',
+                        data=dict(
+                                  target_discovered=True,
+                                  volume_id=cinder_volume.id,
+                                  access_mode=access_mode,
+                                  target_portal=target_portal,
+                                  target_iqn=target_iqn,
+                                  target_lun=lun,
+                                  ))
         else:
             raise exception.Invalid(translate(("initialize_connection: No wwpns or iscsi initiator found on host")))
 
-            
+
 
     @_infinipy_to_cinder_exceptions
     def terminate_connection(self, cinder_volume, connector, force=False):
@@ -301,8 +298,10 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 self._delete_host_if_unused(host)
 
         elif connector.get(u'initiator'):
-
-            host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            try:
+                host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            except ISCSIGWTimeoutException:
+                return
             self._set_host_metadata(host)
             host.unmap_volume(infinidat_volume, force=force)
             self._delete_host_if_unused(host)
@@ -315,7 +314,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         else:
             raise exception.Invalid(translate(("terminate_connection: No wwpns or iscsi initiator found on host")))
-            
+
 
 
     @_infinipy_to_cinder_exceptions
@@ -451,7 +450,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         infinidat_volume.set_metadata("driver_version", str(self.VERSION))
 
     def _assert_connector(self, connector):
-        if ((not u'wwpns' in connector or not connector[u'wwpns']) and 
+        if ((not u'wwpns' in connector or not connector[u'wwpns']) and
             (not u'initiator' in connector or not connector[u'initiator']) ):
             LOG.warn("no WWPN or iSCSI initiator was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('No WWPN or iSCSI initiator was received'))

@@ -431,6 +431,8 @@ class MockTestCaseMixin(object):
 
 class OpenStackISCSITestCase(OpenStackTestCase):
 
+    ISCSI_GW_SLEEP_TIME = 10
+
     def get_connector(self):
         return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
                          host=gethostname(),
@@ -526,10 +528,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         poll_script = """#!/bin/sh
         while true; do
             iscsi-manager poll
-            sleep 10
+            sleep {}
         done
         """
-        open("./iscsi-poll.sh", 'w').write(poll_script)
+        open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
 
@@ -554,7 +556,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def iscsi_manager_poll(cls):
-        execute_assert_success(["iscsi-manager", "poll"])
+        sleep(cls.ISCSI_GW_SLEEP_TIME)
 
     @classmethod
     def destroy_iscsi_manager_configuration(cls):

@@ -454,3 +454,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             (not u'initiator' in connector or not connector[u'initiator']) ):
             LOG.warn("no WWPN or iSCSI initiator was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('No WWPN or iSCSI initiator was received'))
+
+    def _detach_volume(self, *args, **kwargs):
+        from subprocess import call
+        # before detaching volumes, we want to call sync to make sure all the IOs are written to disk
+        call(["/bin/sync"])
+        super(InfiniboxVolumeDriver, self)._detach_volume(*args, **kwargs)

@@ -91,6 +91,16 @@ def get_cinder_client(host="localhost"):
     return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
 
 
+def get_glance_client(host="localhost", token=None):
+    from keystoneclient.v2_0.client import Client as KeystoneClient
+    from glanceclient.client import Client as GlanceClient
+    keystone = KeystoneClient(username='admin', password='admin', tenant_name="admin",
+                              auth_url="http://{}:5000/v2.0/".format(host))
+    endpoint = keystone.service_catalog.url_for(service_type='image', endpoint_type='publicURL')
+    glance = GlanceClient("1", endpoint=endpoint, token=keystone.auth_token)
+    return glance
+
+
 def restart_cinder():
     execute_assert_success(["openstack-service", "restart", "cinder-volume"])
     sleep(10) # give time for the volume drive to come up, no APIs to checking this
@@ -118,9 +128,9 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self):
+    def provisioning_pool_context(self, provisioning='thick'):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        with self.cinder_context(self.infinipy, pool):
+        with self.cinder_context(self.infinipy, pool, provisioning):
             yield pool
         pool.purge()
 
@@ -137,7 +147,7 @@ class OpenStackTestCase(TestCase):
     def wait_for_object_creation(self, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
-            if cinder_object.status in ("creating", ):
+            if cinder_object.status in ("creating", "downloading"):
                 cinder_object.get()
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
@@ -156,9 +166,11 @@ class OpenStackTestCase(TestCase):
 
         poll()
 
-    def _create_volume(self, size_in_gb, volume_type=None, source_volid=None, timeout=30):
+    def _create_volume(self, size_in_gb, volume_type=None, source_volid=None, imageRef=None, timeout=30):
         cinder_volume = self.get_cinder_client().volumes.create(size_in_gb,
-                                                                volume_type=volume_type, source_volid=source_volid)
+                                                                volume_type=volume_type,
+                                                                source_volid=source_volid,
+                                                                imageRef=imageRef)
         if timeout:
             self.wait_for_object_creation(cinder_volume, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
@@ -166,7 +178,11 @@ class OpenStackTestCase(TestCase):
 
     def create_volume(self, size_in_gb, pool=None, timeout=30):
         volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout)
+        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout,)
+
+    def create_volume_from_image(self, size_in_gb, pool=None, image=None, timeout=30):
+        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
+        return self._create_volume(size_in_gb, volume_type=volume_type, imageRef=image.id, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
         cinder_snapshot = self.get_cinder_client().volume_snapshots.create(cinder_volume.id)
@@ -210,6 +226,12 @@ class OpenStackTestCase(TestCase):
         cinder_clone = self.create_clone(cinder_volume, timeout)
         yield cinder_clone
         self.delete_cinder_object(cinder_clone, timeout)
+
+    @contextmanager
+    def cinder_image_context(self, size_in_gb, pool, image, timeout=30):
+        cinder_volume = self.create_volume_from_image(size_in_gb, pool, image, timeout)
+        yield cinder_volume
+        self.delete_cinder_object(cinder_volume)
 
     def get_connector(self):
         raise NotImplementedError()
@@ -278,9 +300,10 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
-    def cinder_context(self, infinipy, pool):
+    def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
-            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456")
+            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
+                               thick_provisioning=provisioning.lower() == 'thick')
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
@@ -291,6 +314,10 @@ class RealTestCaseMixin(object):
             config.disable(config_parser, key)
             config.remove(config_parser, key)
         restart_cinder()
+
+    def get_cirros_image(self):
+        glance = get_glance_client()
+        return glance.images.find(name='cirros')
 
 
 class MockTestCaseMixin(object):
@@ -326,11 +353,12 @@ class MockTestCaseMixin(object):
 
     @classmethod
     @contextmanager
-    def cinder_context(cls, infinipy, pool):
+    def cinder_context(cls, infinipy, pool, provisioning='thick'):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
         volume_driver_config.update(san_ip=infinipy.get_hostname(),
                                     infinidat_pool_id=pool.get_id(),
-                                    san_login="admin", san_password="123456")
+                                    san_login="admin", san_password="123456",
+                                    infinidat_provision_type=provisioning)
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
@@ -349,7 +377,17 @@ class MockTestCaseMixin(object):
                 return
             raise NotFound(cinder_object.id)
 
-        def create(size, volume_type=None, source_volid=None):
+        def consume_space(cinder_volume):
+            from infinipy import System
+            from capacity import GB
+            [volume] = [item for item in cls.infinipy.get_volumes()
+                        if item.get_metadata('cinder_id') == cinder_volume.id]
+            for simulator in cls.smock.get_inventory()._simulators:
+                if simulator.get_serial() != volume.get_system().get_serial():
+                    continue
+                simulator.volumes.get_by_name(volume.get_name()).consume(0*GB, 1*GB)
+
+        def create(size, volume_type=None, source_volid=None, imageRef=None):
             def delete(cinder_volume):
                 cinder_volume.status = 'deleting'
                 cls.volumes.pop(cinder_volume.id)
@@ -369,6 +407,8 @@ class MockTestCaseMixin(object):
 
             if source_volid is None: # new volume
                 volume_driver.create_volume(cinder_volume)
+                if imageRef is not None:
+                    consume_space(cinder_volume)
             else: # new clone
                 cinder_volume.source_volid = source_volid
                 volume_driver.create_cloned_volume(cinder_volume, cls.volumes[source_volid])
@@ -423,6 +463,21 @@ class MockTestCaseMixin(object):
     @classmethod
     def teardown_infinibox(cls):
         pass
+
+    def get_cirros_image(self):
+        return Munch({u'status': u'active',
+                      u'name': u'cirros', u'deleted': False,
+                      u'container_format': u'bare',
+                      u'created_at': u'2014-03-12T13:45:43',
+                      u'disk_format': u'qcow2',
+                      u'updated_at': u'2014-03-12T13:48:08',
+                      u'properties': {},
+                      u'owner':u'cf53c6fafaf74ef7ab603c2f47ae4221',
+                      u'protected': False, u'min_ram': 0,
+                      u'checksum': u'd972013792949d0d3ba628fbe8685bce',
+                      u'min_disk': 0, u'is_public': True, u'deleted_at': None,
+                      u'id': u'd8b8a450-46e4-4428-935e-aec82925c262',
+                      u'size': 13147648})
 
 
 class OpenStackISCSITestCase(OpenStackTestCase):

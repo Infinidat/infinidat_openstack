@@ -126,6 +126,15 @@ class ProvisioningTestsMixin(object):
                         cinder_volume.manager.extend(cinder_clone, 2)  # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
                         self.assert_infinibox_volume_size(infinibox_clone, 2)
 
+    def test_copy_image_to_volume(self):
+        cirrus_image = self.get_cirros_image()
+        with self.provisioning_pool_context(provisioning='thin') as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_image_context(2, pool=pool, image=cirrus_image):
+                    [infinibox_volume], _ = get_diff()
+                    self.assertGreater(infinibox_volume.get_allocated_size(), 0)
+                    self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
+
     def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
         from capacity import GiB
         @retry_func(WaitAndRetryStrategy(timeout, 1))

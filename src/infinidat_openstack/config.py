@@ -6,7 +6,12 @@ from . import exceptions
 def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
     from ConfigParser import RawConfigParser
     from logging.handlers import RotatingFileHandler
-    parser = RawConfigParser()
+    try:
+        from collections import OrderedDict
+    except ImportError:
+        from .collections import OrderedDict
+
+    parser = RawConfigParser(dict_type=OrderedDict)
     parser.optionxform = str    # make options case-sensitive
     parser.read(filepath)
     try:

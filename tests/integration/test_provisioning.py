@@ -2,13 +2,6 @@ import test_case
 from infi.unittest import parameters
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 
-def setup_module():
-    test_case.prepare_host()
-
-def teardown_module():
-    pass
-
-
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
         with self.provisioning_pool_context() as pool:

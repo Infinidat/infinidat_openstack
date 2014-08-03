@@ -77,6 +77,9 @@ class InstallerTestCase(TestCase):
     def build_two_packages(self):
         first = self.build()
         execute_assert_success(["git", "commit", "--allow-empty", "--message", "testing package upgrade"])
-        self.addCleanup(lambda: execute_assert_success(["git", "reset", "--hard", "HEAD^"]))
+        def _revert():
+            execute_assert_success(["git", "reset", "--hard", "HEAD^"])
+            execute_assert_success(["bin/buildout", "buildout:develop=", "install", "setup.py", "__version__.py"])
+        self.addCleanup(_revert)
         second = self.build()
         return first, second

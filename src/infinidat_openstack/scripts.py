@@ -22,7 +22,7 @@ Commands:
 Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
-    --dry-run                            don't save changes
+    --commit                             commit the changes into cinder's configuration file (also erases the comments inside it)
 """
 
 
@@ -33,7 +33,7 @@ import warnings
 warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
 
 
-CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable")
+CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update")
 DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TRACEBACK_FILE = sys.stderr
@@ -112,7 +112,12 @@ def get_infinipy_from_arguments(arguments):
 def handle_commands(arguments, config_file):
     from . import config
     from .exceptions import UserException
-    write_on_exit = not arguments.get("--dry-run") and any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
+    any_modyfing_kwargs = any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
+    write_on_exit = arguments.get("--commit") and any_modyfing_kwargs
+    if any_modyfing_kwargs and not arguments.get("--commit"):
+        _print("this is a dry run, to commit the changes into cinder's configuration file, "\
+            "you should pass --commit to this script (also erases the comments inside cinder's configuration file).")
+
     address, username, password = arguments.get('<management-address>'), arguments.get('<username>'), arguments.get('<password>')
     try:
         pool_name, pool_id = arguments.get('<pool-name>'), int(arguments.get("<pool-id>") or 0)

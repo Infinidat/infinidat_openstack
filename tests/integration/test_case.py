@@ -14,6 +14,7 @@ from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
+from tests.test_common import ensure_package_is_installed, remove_package
 
 
 CINDER_LOGDIR = "/var/log/cinder"
@@ -83,14 +84,6 @@ def prepare_host():
     """using cached_function to make sure this is called only once"""
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
     fix_ip_addresses_in_openstack()
-    execute(["yum", "reinstall", "-y", "python-setuptools"])
-    execute(["yum", "install",   "-y", "python-devel"])
-    execute(["easy_install-2.6", "-U", "requests"])
-    execute(["python2.6", "setup.py", "install"])
-
-    # This line actually installs the driver into openstack's python
-    execute_assert_success(["python2.6", "setup.py", "install"])
-    execute_assert_success(['openstack-service', 'restart'])
 
 
 def get_cinder_client(host="localhost"):
@@ -252,11 +245,14 @@ class RealTestCaseMixin(object):
     def setup_host(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
+        prepare_host()
+        ensure_package_is_installed()
         cls.cleanup_infiniboxes_from_cinder()
 
     @classmethod
     def teardown_host(cls):
         cls.cleanup_infiniboxes_from_cinder()
+        remove_package()
 
     @classmethod
     def setup_infinibox(cls):

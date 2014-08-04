@@ -132,6 +132,9 @@ class ProvisioningTestsMixin(object):
             with self.assert_volume_count() as get_diff:
                 with self.cinder_image_context(2, pool=pool, image=cirrus_image):
                     [infinibox_volume], _ = get_diff()
+                    # the right way is to look at the used size, but infinisim's consume updates only the allocated
+                    # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size
+                    # and assert that the image copy changed the allocation size
                     self.assertGreater(infinibox_volume.get_allocated_size(), 0)
                     self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
 

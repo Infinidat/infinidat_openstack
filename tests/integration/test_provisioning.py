@@ -126,6 +126,15 @@ class ProvisioningTestsMixin(object):
                         cinder_volume.manager.extend(cinder_clone, 2)  # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
                         self.assert_infinibox_volume_size(infinibox_clone, 2)
 
+    def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
+        from capacity import GiB
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
+        poll()
+
+
+class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     def test_copy_image_to_volume(self):
         cirrus_image = self.get_cirros_image()
         with self.provisioning_pool_context(provisioning='thin') as pool:
@@ -137,17 +146,6 @@ class ProvisioningTestsMixin(object):
                     # and assert that the image copy changed the allocation size
                     self.assertGreater(infinibox_volume.get_allocated_size(), 0)
                     self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
-
-    def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
-        from capacity import GiB
-        @retry_func(WaitAndRetryStrategy(timeout, 1))
-        def poll():
-            self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
-        poll()
-
-
-class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
-    pass
 
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):

@@ -59,11 +59,14 @@ INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powe
 class InfiniboxException(exception.CinderException):
     pass
 
+
 class ISCSIGWTimeoutException(exception.CinderException):
     pass
 
+
 class ISCSIGWVolumeNotExposedException(exception.CinderException):
     pass
+
 
 class InfiniBoxVolumeDriverConnectionException(exception.CinderException):
     pass
@@ -215,13 +218,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         for key in new_metadata:
             if not key.endswith('_change_counter'):
                 continue
-            if int(old_metadata.get(key,0)) < int(new_metadata[key]):
+            if int(old_metadata.get(key, 0)) < int(new_metadata[key]):
                 host_id = key.lstrip('iscsi_host_').rstrip('_change_counter')
-                return self.system.objects.Host.get(id=host_id)
+                return self.system.objects.Host.get(id=int(host_id))
         return None
 
     @_infinipy_to_cinder_exceptions
-    def _wait_for_iscsi_target_host(self, old_metadata):
+    def _wait_for_any_target_to_update_lun_mappings_no_host(self, host, old_metadata):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
@@ -231,7 +234,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWVolumeNotExposedException("_wait_for_iscsi_target_host: virtual host doesn't exist on box")
+        raise ISCSIGWVolumeNotExposedException("_wait_for_any_target_to_update_lun_mappings_no_host: virtual host doesn't exist on box")
 
     @_infinipy_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
@@ -255,13 +258,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                         data=dict(target_discovered=False, target_wwn=target_wwn, target_lun=lun, access_mode=access_mode))
 
         elif connector.get(u'initiator'):
-            # TODO some iSCSI drivers handle the iSCSI connection here, some dont
-            # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
-            # if not self._iscsi_gateway_exists():
-                # raise error
-            # else:
-                # self._ensure_connected_to_iscsi_gateway()
-
             host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
             self._set_host_metadata(host)
 
@@ -271,13 +267,15 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             lun = host.map_volume(infinidat_volume)
 
             # We wait for the volume to be exposed via the gateway
-            target_host = self._wait_for_iscsi_target_host(metadata_before_map)
+            target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
 
-            target_iqn = target_host.get_metadata().get('iscsi_manager_iqn')
-            target_portal = target_host.get_metadata().get('iscsi_manager_portal')
+            iscsi_target_metadata = target_host.get_metadata()
+            target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
+            target_portal = iscsi_target_metadata.get('iscsi_manager_portal')
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
 
-            # TODO the interface states we need to return iSCSI target info but we have several, what do we do?
+            # the interface states we need to return iSCSI target info but we have several
+            # so we just return one that we know that mapped the volume to the client
             return dict(driver_volume_type='iscsi',
                         data=dict(
                                   target_discovered=True,
@@ -319,17 +317,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             host.unmap_volume(infinidat_volume, force=force)
             self._delete_host_if_unused(host)
 
-            # TODO some iSCSI drivers handle the iSCSI connection here, some dont
-            # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
-            # self._disconnect_from_iscsi_gateway_if_unused()
-
             # We wait for the volume to be unexposed via the gateway
-            self._wait_for_iscsi_target_host(metadata_before_map)
+            self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
 
         else:
             raise exception.Invalid(translate(("terminate_connection: No wwpns or iscsi initiator found on host")))
-
-
 
     @_infinipy_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):

@@ -24,6 +24,8 @@ volume_opts = [
     cfg.StrOpt('infinidat_snapshot_name_prefix', help='Cinder snapshot name prefix in Infinibox',
                default='openstack-snap'),
     cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
+    cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=15),
+    cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
 ]
 
 # Since we no longer inherit from SanDriver we have to read those config values
@@ -53,15 +55,14 @@ STATS_VENDOR = 'Infinidat'
 STATS_PROTOCOL = 'iSCSI/FC' # Nothing is actually done with this field
 INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
-# TODO extract these to cinder configuration
-ISCSI_GW_TIMEOUT_SEC = 15
-ISCSI_GW_TIME_BETWEEN_RETRIES_SEC = 1
-
 
 class InfiniboxException(exception.CinderException):
     pass
 
 class ISCSIGWTimeoutException(exception.CinderException):
+    pass
+
+class ISCSIGWVolumeNotExposedException(exception.CinderException):
     pass
 
 class InfiniBoxVolumeDriverConnectionException(exception.CinderException):
@@ -199,28 +200,38 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @_infinipy_to_cinder_exceptions
     def _wait_for_iscsi_host(self, initiator):
         start = time()
-        while time() - start < ISCSI_GW_TIMEOUT_SEC:
+        while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
             for host in self.system.get_hosts():
                 if initiator == host.get_metadata().get('iscsi_manager_iqn'):
                     return host
 
-            sleep(ISCSI_GW_TIME_BETWEEN_RETRIES_SEC)
+            sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
         raise ISCSIGWTimeoutException("_wait_for_iscsi_host: virtual host doesn't exist on box")
 
     @_infinipy_to_cinder_exceptions
-    def _wait_for_iscsi_gw_host(self):
+    def _find_target_by_metadata_change(self, old_metadata, new_metadata):
+        for key in new_metadata:
+            if not key.endswith('_change_counter'):
+                continue
+            if int(old_metadata.get(key,0)) < int(new_metadata[key]):
+                host_id = key.lstrip('iscsi_host_').rstrip('_change_counter')
+                return self.system.objects.Host.get(id=host_id)
+        return None
+
+    @_infinipy_to_cinder_exceptions
+    def _wait_for_iscsi_target_host(self, old_metadata):
         start = time()
-        while time() - start < ISCSI_GW_TIMEOUT_SEC:
+        while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
-            for host in self.system.get_hosts():
-                if host.get_metadata().get('iscsi_manager_portal'):
-                    return host
+            target_host = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
+            if target_host:
+                return target_host
 
-            sleep(ISCSI_GW_TIME_BETWEEN_RETRIES_SEC)
+            sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWTimeoutException("_wait_for_iscsi_gw_host: virtual host doesn't exist on box")
+        raise ISCSIGWVolumeNotExposedException("_wait_for_iscsi_target_host: virtual host doesn't exist on box")
 
     @_infinipy_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
@@ -254,15 +265,17 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
             self._set_host_metadata(host)
 
+            # we would like to compare before/after the map to make sure at least one target is aware of the map
+            metadata_before_map = host.get_metadata()
+
             lun = host.map_volume(infinidat_volume)
 
-            # TODO do we wait a fixed time for the volume to be exposed via the gateway, or do we and API to poll it?
-            sleep(ISCSI_GW_TIMEOUT_SEC)
+            # We wait for the volume to be exposed via the gateway
+            target_host = self._wait_for_iscsi_target_host(metadata_before_map)
 
-            target_host = self._wait_for_iscsi_gw_host()
             target_iqn = target_host.get_metadata().get('iscsi_manager_iqn')
-            access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
             target_portal = target_host.get_metadata().get('iscsi_manager_portal')
+            access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
 
             # TODO the interface states we need to return iSCSI target info but we have several, what do we do?
             return dict(driver_volume_type='iscsi',
@@ -310,7 +323,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             # if we dont, we put this on the user -- not so elegant, but doesn't require work to build bindings to iscsiadm
             # self._disconnect_from_iscsi_gateway_if_unused()
 
-            sleep(ISCSI_GW_TIMEOUT_SEC);
+            # We wait for the volume to be unexposed via the gateway
+            self._wait_for_iscsi_target_host(metadata_before_map)
 
         else:
             raise exception.Invalid(translate(("terminate_connection: No wwpns or iscsi initiator found on host")))

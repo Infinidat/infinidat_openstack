@@ -552,8 +552,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def connect_to_iscsi_manager(cls):
-        execute(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
-        execute(["iscsiadm", "-m", "node" , "-L" ,"all"])
+        execute_assert_success(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
+        execute_assert_success(["iscsiadm", "-m", "node" , "-L" ,"all"])
 
     @classmethod
     def disconnect_from_iscsi_manager(cls):
@@ -572,10 +572,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
-        execute(["iscsi-manager", "config", "init"])
-        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "admin", "123456"])
+        execute_assert_success(["iscsi-manager", "config", "init"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
-        execute(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
         while true; do
             iscsi-manager poll
@@ -583,27 +583,15 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         done
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
-        execute(["chmod", "+x", "./iscsi-poll.sh"])
+        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
 
     @classmethod
     def get_iscsi_port(cls):
-        # TODO refactor using infi.stroagemodel
-        import re
-        sg_inq_output = execute(["""
-            for i in `lsscsi | grep "NFINIDAT"| awk "{print $1}" | tr -d "[]"`;
-            do  ls /sys/class/scsi_device/$i/device/scsi_generic ;
-            done | while read line; do sg_inq -p 0x83 /dev/$line | grep "Relative target port:";
-            done"""], shell=True).get_stdout()
-        fc_ports = re.findall('\s*Relative target port: (0x.+)\s*', sg_inq_output)
-        if not fc_ports:
-            raise NoFCPortsException("Could not find any fc ports")
+        from infi.storagemodel.vendor.infinidat.shortcuts import get_infinidat_storage_controller_devices
 
-        # Assume only one port
-        hex_port = int(fc_ports[0], 16)
-        node_id = (hex_port >> 8) & 0xFF
-        port_id = hex_port & 0xFF
-        return node_id, port_id
+        fc_port = get_infinidat_storage_controller_devices()[0].get_vendor().get_fc_port()
+        return fc_port.get_node_id(), fc_port.get_port_id()
 
     @classmethod
     def iscsi_manager_poll(cls):

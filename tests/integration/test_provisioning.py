@@ -1,6 +1,8 @@
 import test_case
 from infi.unittest import parameters
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
+from infi.pyutils.contexts import contextmanager
+
 
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
@@ -133,25 +135,46 @@ class ProvisioningTestsMixin(object):
             self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
         poll()
 
+    def _do_image_copy_and_assert_size(self, pool, image):
+        with self.assert_volume_count() as get_diff:
+            with self.cinder_image_context(2, pool=pool, image=image):
+                [infinibox_volume], _ = get_diff()
+                # the right way is to look at the used size, but infinisim's consume updates only the allocated
+                # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size
+                # and assert that the image copy changed the allocation size
+                self.assertGreater(infinibox_volume.get_allocated_size(), 0)
+                self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
 
-class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+    def _set_multipath_for_image_xfer(self, value):
+        from infinidat_openstack.config import get_config_parser
+        with get_config_parser(write_on_exit=True) as config_parser:
+            config_parser.set("DEFAULT", "use_multipath_for_image_xfer", value)
+        test_case.restart_cinder()
+
+    @contextmanager
+    def _use_multipath_for_image_xfer_context(self):
+        self._set_multipath_for_image_xfer("true")
+        try:
+            yield
+        finally:
+            self._set_multipath_for_image_xfer("false")
+
     def test_copy_image_to_volume(self):
         cirrus_image = self.get_cirros_image()
         with self.provisioning_pool_context(provisioning='thin') as pool:
-            with self.assert_volume_count() as get_diff:
-                with self.cinder_image_context(2, pool=pool, image=cirrus_image):
-                    [infinibox_volume], _ = get_diff()
-                    # the right way is to look at the used size, but infinisim's consume updates only the allocated
-                    # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size
-                    # and assert that the image copy changed the allocation size
-                    self.assertGreater(infinibox_volume.get_allocated_size(), 0)
-                    self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
+            self._do_image_copy_and_assert_size(pool, cirrus_image)
+            with self._use_multipath_for_image_xfer_context():
+                self._do_image_copy_and_assert_size(pool, cirrus_image)
 
+
+class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+    pass
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     pass
 
 
 class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
-    pass
+    def _set_multipath_for_image_xfer(self, value):
+        pass
 

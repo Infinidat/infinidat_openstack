@@ -6,7 +6,7 @@ from munch import Munch
 from unittest import SkipTest
 from urlparse import urlparse
 from socket import gethostname, gethostbyname
-from infi.execute import execute_assert_success, execute, execute_async
+from infi.execute import execute_assert_success, execute, execute_async, ExecutionError
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
@@ -560,10 +560,21 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["iscsiadm", "-m", "node" , "-U" ,"all"])
 
     @classmethod
+    def _install_scst_for_current_kernel_or_skip_test(cls):
+        kernel_version = execute_assert_success(["uname", "-r"]).get_stdout().strip()
+        package = "scst-{}.x86_64".format(kernel_version)
+        try:
+            execute_assert_success(["yum", "install", "-y", package])
+        except ExecutionError, error:
+            if "No package" in error.get_stderr() + error.get_stdout():
+                raise SkipTest("no scst package for kernel {}".format(kernel_version))
+            raise
+
+    @classmethod
     def install_iscsi_manager(cls):
         execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
         execute(["yum", "install", "-y", "iscsi-manager"])
-        execute(["yum", "install", "-y", "scst-2.6.32-431.17.1.el6.iscsigw.x86_64.x86_64"])
+        sel def _install_scst_for_current_kernel_or_skip_test(cls)
         execute(["yum", "install", "-y", "scstadmin.x86_64"])
         execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])

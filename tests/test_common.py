@@ -7,7 +7,7 @@ INFINIOPENSTACK_EXECUTABLE = "/usr/bin/infini-openstack"
 CINDER_CONFIG_FILE = "/etc/cinder/cinder.conf"
 
 def install_package():
-    packages = glob("dist/*rpm")
+    packages = [item for item in glob("dist/*rpm") if 'debuginfo' not in item]
     if not packages:
         raise SkipTest("no packages found")
     execute_assert_success(["rpm", "-Uvh", packages[0]])

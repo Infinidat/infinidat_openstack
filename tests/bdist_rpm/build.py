@@ -72,7 +72,10 @@ def main():
     change_version_in_setup_py()
 
     os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
-    for filename in glob.glob("dist/*rpm"):
+    for filename in list(glob.glob("dist/*rpm")):
+        if 'debuginfo' in filename:
+            os.remove(filename)
+            continue
         if get_os_string() in filename:
             continue
         new = filename.replace(filename[filename.rindex('-'):], "-{}.rpm".format(get_os_string()))

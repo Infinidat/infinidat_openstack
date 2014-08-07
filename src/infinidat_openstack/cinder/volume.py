@@ -26,6 +26,7 @@ volume_opts = [
     cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=15),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
+    cfg.BoolOpt('infinidat_prefer_fc', help='Use wwpns from connector if supplied with iSCSI initiator', default=False),
 ]
 
 # Since we no longer inherit from SanDriver we have to read those config values
@@ -200,7 +201,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         else:
             infinidat_volume.delete()
 
-    @_infinipy_to_cinder_exceptions
     def _wait_for_iscsi_host(self, initiator):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
@@ -213,7 +213,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         raise ISCSIGWTimeoutException("_wait_for_iscsi_host: virtual host doesn't exist on box")
 
-    @_infinipy_to_cinder_exceptions
     def _find_target_by_metadata_change(self, old_metadata, new_metadata):
         for key in new_metadata:
             if not key.endswith('_change_counter'):
@@ -223,7 +222,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 return self.system.objects.Host.get(id=int(host_id))
         return None
 
-    @_infinipy_to_cinder_exceptions
     def _wait_for_any_target_to_update_lun_mappings_no_host(self, host, old_metadata):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
@@ -243,86 +241,95 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         #            u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
 
         self._assert_connector(connector)
+        methods = dict(fc=self._initialize_connection__fc,
+                       iscsi=self._initialize_connection__iscsi)
+        return self._handle_connection(methods, cinder_volume, connector)
+
+    def _initialize_connection__fc(self, cinder_volume, connector):
         infinidat_volume = self._find_volume(cinder_volume)
-
-        if connector.get(u'wwpns'):
-            for wwpn in connector[u'wwpns']:
-                host = self._find_or_create_host_by_wwpn(wwpn)
-                self._set_host_metadata(host)
-                lun = host.map_volume(infinidat_volume)
-                access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
-                target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
-
-            # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
-            return dict(driver_volume_type='fibre_channel',
-                        data=dict(target_discovered=False, target_wwn=target_wwn, target_lun=lun, access_mode=access_mode))
-
-        elif connector.get(u'initiator'):
-            host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
+        for wwpn in connector[u'wwpns']:
+            host = self._find_or_create_host_by_wwpn(wwpn)
             self._set_host_metadata(host)
-
-            # we would like to compare before/after the map to make sure at least one target is aware of the map
-            metadata_before_map = host.get_metadata()
-
             lun = host.map_volume(infinidat_volume)
-
-            # We wait for the volume to be exposed via the gateway
-            target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
-
-            iscsi_target_metadata = target_host.get_metadata()
-            target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
-            target_portal = iscsi_target_metadata.get('iscsi_manager_portal')
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+            target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
 
-            # the interface states we need to return iSCSI target info but we have several
-            # so we just return one that we know that mapped the volume to the client
-            return dict(driver_volume_type='iscsi',
-                        data=dict(
-                                  target_discovered=True,
-                                  volume_id=cinder_volume.id,
-                                  access_mode=access_mode,
-                                  target_portal=target_portal,
-                                  target_iqn=target_iqn,
-                                  target_lun=lun,
-                                  ))
+        # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
+        return dict(driver_volume_type='fibre_channel',
+                    data=dict(target_discovered=False, target_wwn=target_wwn, target_lun=lun, access_mode=access_mode))
+
+    def _initialize_connection__iscsi(self, cinder_volume, connector):
+        infinidat_volume = self._find_volume(cinder_volume)
+        host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
+        self._set_host_metadata(host)
+
+        # we would like to compare before/after the map to make sure at least one target is aware of the map
+        metadata_before_map = host.get_metadata()
+
+        lun = host.map_volume(infinidat_volume)
+
+        # We wait for the volume to be exposed via the gateway
+        target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
+
+        iscsi_target_metadata = target_host.get_metadata()
+        target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
+        target_portal = iscsi_target_metadata.get('iscsi_manager_portal')
+        access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+
+        # the interface states we need to return iSCSI target info but we have several
+        # so we just return one that we know that mapped the volume to the client
+        return dict(driver_volume_type='iscsi',
+                    data=dict(
+                              target_discovered=True,
+                              volume_id=cinder_volume.id,
+                              access_mode=access_mode,
+                              target_portal=target_portal,
+                              target_iqn=target_iqn,
+                              target_lun=lun,
+                              ))
+
+    def _handle_connection(self, protocol_methods, cinder_volume, connector, *args, **kwargs):
+        preferred_fc = self.configuration.infinidat_prefer_fc
+        fc, iscsi = connector.get('wwpns'), connector.get('initiator')
+        if not fc and not iscsi:
+            raise exception.Invalid(translate(("no wwpns or iscsi initiator in connector {}".format(connector))))
+        elif fc and (not iscsi or preferred_fc):
+            return protocol_methods['fc'](cinder_volume, connector, *args, **kwargs)
         else:
-            raise exception.Invalid(translate(("initialize_connection: No wwpns or iscsi initiator found on host")))
-
-
+            return protocol_methods['iscsi'](cinder_volume, connector, *args, **kwargs)
 
     @_infinipy_to_cinder_exceptions
     def terminate_connection(self, cinder_volume, connector, force=False):
-
-        from infinipy.system.exceptions import NoObjectFound
         self._assert_connector(connector)
+        methods = dict(fc=self._terminate_connection__fc,
+                       iscsi=self._terminate_connection__iscsi)
+        return self._handle_connection(methods, cinder_volume, connector, force=force)
 
+    def _terminate_connection__fc(self, cinder_volume, connector, force=False):
+        from infinipy.system.exceptions import NoObjectFound
         infinidat_volume = self._find_volume(cinder_volume)
-
-        if connector.get(u'wwpns'):
-            for wwpn in connector[u'wwpns']:
-                try:
-                    host = self._find_host_by_wwpn(wwpn)
-                except NoObjectFound:
-                    continue
-                self._set_host_metadata(host)
-                host.unmap_volume(infinidat_volume, force=force)
-                self._delete_host_if_unused(host)
-
-        elif connector.get(u'initiator'):
+        for wwpn in connector[u'wwpns']:
             try:
-                host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
-            except ISCSIGWTimeoutException:
-                return
+                host = self._find_host_by_wwpn(wwpn)
+            except NoObjectFound:
+                continue
             self._set_host_metadata(host)
-            metadata_before_unmap = host.get_metadata()
             host.unmap_volume(infinidat_volume, force=force)
             self._delete_host_if_unused(host)
 
-            # We wait for the volume to be unexposed via the gateway
-            self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)
+    def _terminate_connection__iscsi(self, cinder_volume, connector, force=False):
+        infinidat_volume = self._find_volume(cinder_volume)
+        try:
+            host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+        except ISCSIGWTimeoutException:
+            return
+        self._set_host_metadata(host)
+        metadata_before_unmap = host.get_metadata()
+        host.unmap_volume(infinidat_volume, force=force)
+        self._delete_host_if_unused(host)
 
-        else:
-            raise exception.Invalid(translate(("terminate_connection: No wwpns or iscsi initiator found on host")))
+        # We wait for the volume to be unexposed via the gateway
+        self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
 
     @_infinipy_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):

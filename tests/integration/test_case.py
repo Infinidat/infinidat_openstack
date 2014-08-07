@@ -115,6 +115,8 @@ class NoFCPortsException(Exception):
 
 
 class OpenStackTestCase(TestCase):
+    prefer_fc = True
+
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
@@ -303,7 +305,8 @@ class RealTestCaseMixin(object):
     def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
-                               thick_provisioning=provisioning.lower() == 'thick')
+                               thick_provisioning=provisioning.lower() == 'thick',
+                               prefer_fc=self.prefer_fc)
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
@@ -483,6 +486,7 @@ class MockTestCaseMixin(object):
 class OpenStackISCSITestCase(OpenStackTestCase):
 
     ISCSI_GW_SLEEP_TIME = 10
+    prefer_fc = False
 
     def get_connector(self):
         return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
@@ -574,7 +578,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def install_iscsi_manager(cls):
         execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
         execute(["yum", "install", "-y", "iscsi-manager"])
-        sel def _install_scst_for_current_kernel_or_skip_test(cls)
+        cls._install_scst_for_current_kernel_or_skip_test()
         execute(["yum", "install", "-y", "scstadmin.x86_64"])
         execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])

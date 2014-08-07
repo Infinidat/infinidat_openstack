@@ -570,7 +570,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         try:
             execute_assert_success(["yum", "install", "-y", package])
         except ExecutionError, error:
-            if "No package" in error.get_stderr() + error.get_stdout():
+            if "No package" in error.result.get_stderr() + error.result.get_stdout():
                 raise SkipTest("no scst package for kernel {}".format(kernel_version))
             raise
 

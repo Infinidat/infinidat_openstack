@@ -329,7 +329,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self._delete_host_if_unused(host)
 
         # We wait for the volume to be unexposed via the gateway
-        self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
+        self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)
 
     @_infinipy_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):

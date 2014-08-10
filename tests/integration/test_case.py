@@ -580,7 +580,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["yum", "install", "-y", "iscsi-manager"])
         cls._install_scst_for_current_kernel_or_skip_test()
         execute(["yum", "install", "-y", "scstadmin.x86_64"])
-        execute(["/etc/init.d/tgtd", "stop"])
+        if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
+            execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])
         execute(["yum", "install", "-y", "lsscsi"])
 

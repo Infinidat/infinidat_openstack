@@ -38,15 +38,11 @@ class ProvisioningTestsMixin(object):
                     self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
 
     def assert_cinder_mapping(self, cinder_volume, infinibox_volume):
-        from infi.storagemodel import get_storage_model
-        from infi.storagemodel.vendor.infinidat.predicates import InfinidatVolumeExists, InfinidatVolumeDoesNotExist
         predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
         with self.cinder_mapping_context(cinder_volume):
             for mapping in infinibox_volume.get_luns():
                 [host] = self.infinipy.objects.Host.find(id=mapping['host_id'])
                 self.assert_host_metadata(host)
-            get_storage_model().rescan_and_wait_for(InfinidatVolumeExists(*predicate_args))
-        get_storage_model().rescan_and_wait_for(InfinidatVolumeDoesNotExist(*predicate_args))
 
     def assert_basic_metadata(self, infinibox_object):
         from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver

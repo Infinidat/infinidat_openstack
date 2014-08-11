@@ -468,8 +468,36 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             LOG.warn("no WWPN or iSCSI initiator was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('No WWPN or iSCSI initiator was received'))
 
+    def _flush_caches_for_specific_device(self, attach_info):
+        import os
+        from fcntl import ioctl
+        log.debug("attempting to flush caches for {0!r}".format(attach_info))
+        fd = os.open(attach_info['device']['path'], os.O_RDONLY)
+        try:
+            ioctl(fd, 4705) # BLKFLSBUF
+        finally:
+            os.close(fd)
+        sleep(10)
+
+    def _call_sync(self):
+        from ctypes import CDLL
+        libc = CDLL("libc.so.6")
+        libc.sync()
+        sleep(10)
+
+    def _flush_caches_to_disk(self, *args, **kwargs):
+        # http://blogs.gnome.org/cneumair/2006/02/11/ioctl-fsync-how-to-flush-block-device-buffers
+        # http://stackoverflow.com/questions/9551838/how-to-purge-disk-i-o-caches-on-linux
+        try:
+            self._flush_caches_for_specific_device(*args, **kwargs)
+        except:
+            log.exception("failed to flush cache for specific device, will just call sync instead")
+            try:
+                self._call_sync()
+            except:
+                log.exception("call to sync failed, caches are not flushed")
+
     def _detach_volume(self, *args, **kwargs):
-        from subprocess import call
         # before detaching volumes, we want to call sync to make sure all the IOs are written to disk
-        call(["/bin/sync"])
+        self._flush_caches_to_disk(*args, **kwargs)
         super(InfiniboxVolumeDriver, self)._detach_volume(*args, **kwargs)

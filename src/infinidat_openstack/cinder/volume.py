@@ -471,7 +471,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _flush_caches_for_specific_device(self, attach_info):
         import os
         from fcntl import ioctl
-        log.debug("attempting to flush caches for {0!r}".format(attach_info))
+        LOG.info("attempting to flush caches for {0!r}".format(attach_info))
         fd = os.open(attach_info['device']['path'], os.O_RDONLY)
         try:
             ioctl(fd, 4705) # BLKFLSBUF
@@ -491,11 +491,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             self._flush_caches_for_specific_device(*args, **kwargs)
         except:
-            log.exception("failed to flush cache for specific device, will just call sync instead")
+            LOG.exception("failed to flush cache for specific device, will just call sync instead")
             try:
                 self._call_sync()
             except:
-                log.exception("call to sync failed, caches are not flushed")
+                LOG.exception("call to sync failed, caches are not flushed")
 
     def _detach_volume(self, *args, **kwargs):
         # before detaching volumes, we want to call sync to make sure all the IOs are written to disk

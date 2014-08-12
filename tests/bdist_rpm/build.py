@@ -12,8 +12,8 @@ def get_os_string():
     dist_name = dist_name.lower()
     is_ubuntu = dist_name == 'ubuntu'
     dist_version_string = dist_version_name.lower() if is_ubuntu else dist_version.lower().split('.')[0]
-    if dist_version_string == 'centos' and linux_distribution()[0].startswith('Red'):
-        dist_version_string = 'redhat'
+    if dist_name == 'centos' and linux_distribution()[0].startswith('Red'):
+        dist_name = 'redhat'
     string_by_os = {
                     "Windows": '-'.join([system_name, arch_name]),
                     "Linux": '-'.join([system_name, dist_name, dist_version_string, arch_name]),

@@ -3,7 +3,7 @@ import sys
 import glob
 
 def get_os_string():
-    from platform import architecture, system, dist
+    from platform import architecture, system, dist, linux_distribution
     from sys import maxsize
     is_64 = maxsize > 2 ** 32
     arch_name = 'x64' if is_64 else 'x86'
@@ -12,6 +12,8 @@ def get_os_string():
     dist_name = dist_name.lower()
     is_ubuntu = dist_name == 'ubuntu'
     dist_version_string = dist_version_name.lower() if is_ubuntu else dist_version.lower().split('.')[0]
+    if dist_version_string == 'centos' and linux_distribution()[0].startswith('Red'):
+        dist_version_string = 'redhat'
     string_by_os = {
                     "Windows": '-'.join([system_name, arch_name]),
                     "Linux": '-'.join([system_name, dist_name, dist_version_string, arch_name]),

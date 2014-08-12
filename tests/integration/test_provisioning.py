@@ -185,8 +185,7 @@ class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase,
         cirrus_image = self.get_cirros_image()
         with self.provisioning_pool_context(provisioning='thin') as pool:
             with self._use_multipath_for_image_xfer_context():
-                with self._cinder_quota_context(50):
-                    self._do_image_copy_and_assert_size(pool, cirrus_image, 50)
+                self._do_image_copy_and_assert_size(pool, cirrus_image, 10)
 
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):

@@ -131,29 +131,34 @@ class ProvisioningTestsMixin(object):
             self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
         poll()
 
-    def _do_image_copy_and_assert_size(self, pool, image):
+    def _do_image_copy_and_assert_size(self, pool, image, count=1):
         with self.assert_volume_count() as get_diff:
-            with self.cinder_image_context(2, pool=pool, image=image):
-                [infinibox_volume], _ = get_diff()
+            with self.cinder_image_context(2, pool=pool, image=image, count=count):
+                infinibox_volumes, _ = get_diff()
                 # the right way is to look at the used size, but infinisim's consume updates only the allocated
                 # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size
                 # and assert that the image copy changed the allocation size
-                self.assertGreater(infinibox_volume.get_allocated_size(), 0)
-                self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
+                for infinibox_volume in infinibox_volumes:
+                    self.assertGreater(infinibox_volume.get_allocated_size(), 0)
+                    self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
 
-    def _set_multipath_for_image_xfer(self, value):
+
+    def _set_cinder_config_value(self, key, value):
         from infinidat_openstack.config import get_config_parser
         with get_config_parser(write_on_exit=True) as config_parser:
-            config_parser.set("DEFAULT", "use_multipath_for_image_xfer", value)
+            config_parser.set("DEFAULT", key, str(value))
         test_case.restart_cinder()
+
+    def _set_multipath_for_image_xfer(self, value):
+        self._set_cinder_config_value("use_multipath_for_image_xfer", value)
 
     @contextmanager
     def _use_multipath_for_image_xfer_context(self):
-        self._set_multipath_for_image_xfer("true")
+        self._set_cinder_config_value("use_multipath_for_image_xfer", "true")
         try:
             yield
         finally:
-            self._set_multipath_for_image_xfer("false")
+            self._set_cinder_config_value("use_multipath_for_image_xfer", "false")
 
     def test_copy_image_to_volume(self):
         cirrus_image = self.get_cirros_image()
@@ -164,7 +169,23 @@ class ProvisioningTestsMixin(object):
 
 
 class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
-    pass
+    @contextmanager
+    def _cinder_quota_context(self, count):
+        self._set_cinder_config_value("quota_volumes", count)
+        self._set_cinder_config_value("quota_snapshot", count)
+        try:
+            yield
+        finally:
+            self._set_cinder_config_value("quota_volumes", 10)
+            self._set_cinder_config_value("quota_snapshot", 10)
+
+    def test_fifty_image_copies(self):
+        cirrus_image = self.get_cirros_image()
+        with self.provisioning_pool_context(provisioning='thin') as pool:
+            with self._use_multipath_for_image_xfer_context():
+                with self._cinder_quota_context(50):
+                    self._do_image_copy_and_assert_size(50)
+
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     pass

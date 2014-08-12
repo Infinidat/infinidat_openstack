@@ -230,10 +230,11 @@ class OpenStackTestCase(TestCase):
         self.delete_cinder_object(cinder_clone, timeout)
 
     @contextmanager
-    def cinder_image_context(self, size_in_gb, pool, image, timeout=60):
-        cinder_volume = self.create_volume_from_image(size_in_gb, pool, image, timeout)
-        yield cinder_volume
-        self.delete_cinder_object(cinder_volume)
+    def cinder_image_context(self, size_in_gb, pool, image, timeout=60, count=1):
+        cinder_volumes = [self.create_volume_from_image(size_in_gb, pool, image, timeout) for xrange(count)]
+        yield cinder_volumes
+        for cinder_volume in cinder_volumes:
+            self.delete_cinder_object(cinder_volume)
 
     def get_connector(self):
         raise NotImplementedError()

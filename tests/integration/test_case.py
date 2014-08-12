@@ -101,9 +101,10 @@ def get_glance_client(host="localhost", token=None):
     return glance
 
 
-def restart_cinder():
-    execute_assert_success(["openstack-service", "restart", "cinder-volume"])
-    sleep(10) # give time for the volume drive to come up, no APIs to checking this
+def restart_cinder(cinder_volume_only=True):
+    execute_assert_success(["openstack-service", "restart",
+                            "cinder-volume" if cinder_volume_only else "cinder"])
+    sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
 
 
 class NotReadyException(Exception):

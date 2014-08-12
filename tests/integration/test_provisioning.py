@@ -142,12 +142,15 @@ class ProvisioningTestsMixin(object):
                     self.assertGreater(infinibox_volume.get_allocated_size(), 0)
                     self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
 
-
-    def _set_cinder_config_value(self, key, value):
+    def _set_cinder_config_values(self, **kwargs):
         from infinidat_openstack.config import get_config_parser
         with get_config_parser(write_on_exit=True) as config_parser:
-            config_parser.set("DEFAULT", key, str(value))
-        test_case.restart_cinder()
+            for key, value in kwargs.items():
+                config_parser.set("DEFAULT", key, str(value))
+        test_case.restart_cinder(cinder_volume_only=False)
+
+    def _set_cinder_config_value(self, key, value):
+        self._set_cinder_config_values(**dict(key=value))
 
     def _set_multipath_for_image_xfer(self, value):
         self._set_cinder_config_value("use_multipath_for_image_xfer", value)
@@ -171,21 +174,22 @@ class ProvisioningTestsMixin(object):
 class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     @contextmanager
     def _cinder_quota_context(self, count):
-        self._set_cinder_config_value("use_default_quota_class", "false")
-        self._set_cinder_config_value("quota_volumes", count)
-        self._set_cinder_config_value("quota_snapshot", count)
+        self._set_cinder_config_values(use_default_quota_class="false",
+                                       quota_volumes=count)
         try:
+            self.get_cinder_client().quotas.defaults('admin').volumes == count
+            self.get_cinder_client().quotas.get('admin').volumes == count
             yield
         finally:
-            self._set_cinder_config_value("quota_volumes", 10)
-            self._set_cinder_config_value("quota_snapshot", 10)
-            self._set_cinder_config_value("use_default_quota_class", "true")
+            self._set_cinder_config_values(use_default_quota_class="true",
+                                           quota_volumes=10)
 
     def test_create_fifty_image_copies(self):
         cirrus_image = self.get_cirros_image()
         with self.provisioning_pool_context(provisioning='thin') as pool:
             with self._use_multipath_for_image_xfer_context():
-                self._do_image_copy_and_assert_size(pool, cirrus_image, 10)
+                with self._cinder_quota_context(50):
+                    self._do_image_copy_and_assert_size(pool, cirrus_image, 50)
 
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
@@ -193,6 +197,5 @@ class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_c
 
 
 class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
-    def _set_multipath_for_image_xfer(self, value):
+    def _set_cinder_config_values(self, **kwargs):
         pass
-

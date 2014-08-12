@@ -171,15 +171,15 @@ class ProvisioningTestsMixin(object):
 class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     @contextmanager
     def _cinder_quota_context(self, count):
+        self._set_cinder_config_value("use_default_quota_class", "false")
         self._set_cinder_config_value("quota_volumes", count)
         self._set_cinder_config_value("quota_snapshot", count)
-        self.get_cinder_client().quotas.update('admin', volumes=count)
         try:
             yield
         finally:
-            self.get_cinder_client().quotas.update('admin', volumes=10)
             self._set_cinder_config_value("quota_volumes", 10)
             self._set_cinder_config_value("quota_snapshot", 10)
+            self._set_cinder_config_value("use_default_quota_class", "true")
 
     def test_create_fifty_image_copies(self):
         cirrus_image = self.get_cirros_image()

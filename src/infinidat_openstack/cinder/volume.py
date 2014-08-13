@@ -485,10 +485,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         libc.sync()
         sleep(10)
 
-    def _flush_caches_to_disk(self, attach_info):
+    def _flush_caches_to_disk(self, *args, **kwargs):
         # http://blogs.gnome.org/cneumair/2006/02/11/ioctl-fsync-how-to-flush-block-device-buffers
         # http://stackoverflow.com/questions/9551838/how-to-purge-disk-i-o-caches-on-linux
         try:
+            # commit b868ae707f9ecbe254101e21d9d7ffa0b05b17d1 changed the intergace for _detach_volume
+            # we need the attach_info instance, so we use this hack
+            from .getcallargs import getcallargs # new in Python-2.7, we bundled the function for Python-2.6
+            attach_info = getcallargs(self._detach_volume, *args, **kwargs)['attach_info']
             self._flush_caches_for_specific_device(attach_info)
         except:
             LOG.exception("failed to flush cache for specific device, will just call sync instead")
@@ -497,7 +501,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             except:
                 LOG.exception("call to sync failed, caches are not flushed")
 
-    def _detach_volume(self, attach_info):
+    def _detach_volume(self, *args, **kwargs):
         # before detaching volumes, we want to call sync to make sure all the IOs are written to disk
-        self._flush_caches_to_disk(attach_info)
-        super(InfiniboxVolumeDriver, self)._detach_volume(attach_info)
+        self._flush_caches_to_disk(*args, **kwargs)
+        super(InfiniboxVolumeDriver, self)._detach_volume(*args, **kwargs)

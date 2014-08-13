@@ -566,7 +566,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
-        clsexecute_async(["sh", "./iscsi-poll.sh"])
+        execute_async(["sh", "./iscsi-poll.sh"])
 
     @classmethod
     def get_iscsi_port(cls):

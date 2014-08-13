@@ -477,12 +477,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             ioctl(fd, 4705) # BLKFLSBUF
         finally:
             os.close(fd)
+        # the call returns before the cache is actually flushed to disk, so we wait a bit
         sleep(10)
 
     def _call_sync(self):
         from ctypes import CDLL
         libc = CDLL("libc.so.6")
         libc.sync()
+        # the call returns before the cache is actually flushed to disk, so we wait a bit
         sleep(10)
 
     def _flush_caches_to_disk(self, *args, **kwargs):
@@ -495,6 +497,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             attach_info = getcallargs(super(InfiniboxVolumeDriver, self)._detach_volume, *args, **kwargs)['attach_info']
             self._flush_caches_for_specific_device(attach_info)
         except:
+            # this can fail,
+            # for example, when cinder-volume runs under user 'cinder' which does not have permissions to read /dev/sdX
+            # so in case this fails, we just call sync
             LOG.exception("failed to flush cache for specific device, will just call sync instead")
             try:
                 self._call_sync()

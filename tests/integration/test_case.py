@@ -508,7 +508,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
-        cls.create_host_object_for_iscsi_client()
         cls.connect_to_iscsi_manager()
         cls.iscsi_manager_poll()
 
@@ -516,45 +515,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def tearDownClass(cls):
         cls.disconnect_from_iscsi_manager()
         cls.destroy_iscsi_manager_configuration()
-        try:
-            cls.host.delete()
-        except:
-            pass
         super(OpenStackISCSITestCase, cls).tearDownClass()
-
-    @classmethod
-    def create_host_object_for_iscsi_client(cls):
-        def _int_to_16_bit_hex(n):
-            return hex(n % (2**16-1))[2:].zfill(4)
-
-        def _int_to_12_bit_wwn_format(n):
-            return hex(n % (2**12-1))[2:].zfill(3)
-
-        NPIV_64BIT_WWPN_TEMPLATE = "2{12bit_host_counter}{24bit_oui}{16bit_system_serial}{8bit_gateway_id}"
-        INFINIDAT_OUI = "742b0f"
-
-        node_id, port_id = cls.get_iscsi_port()
-        gateway_id = str(node_id)+str(port_id)
-
-        kwargs = {
-            "12bit_host_counter": _int_to_12_bit_wwn_format(1),
-              "24bit_oui": INFINIDAT_OUI,
-              "16bit_system_serial": _int_to_16_bit_hex(cls.infinipy.get_serial()),
-              "8bit_gateway_id": gateway_id
-        }
-
-        fc_port_string = NPIV_64BIT_WWPN_TEMPLATE.format(**kwargs)
-        client_iqn = cls.get_iscsi_initiator()
-        cls.host = cls.infinipy.objects.Host.create()
-        cls.host.set_metadata("iscsi_manager_iqn", client_iqn)
-        cls.host.add_fc_port(fc_port_string)
-
-        # zone this new fc port with infinibox
-        from infi.vendata.integration_tests.zoning import FcManager
-        from infi.dtypes.wwn import WWN
-        system_wwn = [wwn for wwn in cls.infinipy.get_fiber_target_addresses() if str(wwn)[-2:]== fc_port_string[-2:]][0]
-        host_wwn = WWN(fc_port_string)
-        FcManager().create_zone([host_wwn, system_wwn])
 
     @classmethod
     def connect_to_iscsi_manager(cls):
@@ -599,13 +560,13 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll
+            iscsi-manager poll --lab-manual-zoning
             sleep {}
         done
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
-        execute_async(["sh", "./iscsi-poll.sh"])
+        clsexecute_async(["sh", "./iscsi-poll.sh"])
 
     @classmethod
     def get_iscsi_port(cls):

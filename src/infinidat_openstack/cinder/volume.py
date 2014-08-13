@@ -492,7 +492,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             # commit b868ae707f9ecbe254101e21d9d7ffa0b05b17d1 changed the intergace for _detach_volume
             # we need the attach_info instance, so we use this hack
             from .getcallargs import getcallargs # new in Python-2.7, we bundled the function for Python-2.6
-            attach_info = getcallargs(self._detach_volume, *args, **kwargs)['attach_info']
+            attach_info = getcallargs(super(InfiniboxVolumeDriver, self)._detach_volume, *args, **kwargs)['attach_info']
             self._flush_caches_for_specific_device(attach_info)
         except:
             LOG.exception("failed to flush cache for specific device, will just call sync instead")

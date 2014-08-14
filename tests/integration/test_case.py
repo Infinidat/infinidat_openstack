@@ -6,7 +6,7 @@ from munch import Munch
 from unittest import SkipTest
 from urlparse import urlparse
 from socket import gethostname, gethostbyname
-from infi.execute import execute_assert_success, execute, execute_async
+from infi.execute import execute_assert_success, execute, execute_async, ExecutionError
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
@@ -14,6 +14,7 @@ from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
+from tests.test_common import ensure_package_is_installed, remove_package
 
 
 CINDER_LOGDIR = "/var/log/cinder"
@@ -83,14 +84,6 @@ def prepare_host():
     """using cached_function to make sure this is called only once"""
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
     fix_ip_addresses_in_openstack()
-    execute(["yum", "reinstall", "-y", "python-setuptools"])
-    execute(["yum", "install",   "-y", "python-devel"])
-    execute(["easy_install-2.6", "-U", "requests"])
-    execute(["python2.6", "setup.py", "install"])
-
-    # This line actually installs the driver into openstack's python
-    execute_assert_success(["python2.6", "setup.py", "install"])
-    execute_assert_success(['openstack-service', 'restart'])
 
 
 def get_cinder_client(host="localhost"):
@@ -98,9 +91,20 @@ def get_cinder_client(host="localhost"):
     return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
 
 
-def restart_cinder():
-    execute_assert_success(["openstack-service", "restart", "cinder-volume"])
-    sleep(10) # give time for the volume drive to come up, no APIs to checking this
+def get_glance_client(host="localhost", token=None):
+    from keystoneclient.v2_0.client import Client as KeystoneClient
+    from glanceclient.client import Client as GlanceClient
+    keystone = KeystoneClient(username='admin', password='admin', tenant_name="admin",
+                              auth_url="http://{}:5000/v2.0/".format(host))
+    endpoint = keystone.service_catalog.url_for(service_type='image', endpoint_type='publicURL')
+    glance = GlanceClient("1", endpoint=endpoint, token=keystone.auth_token)
+    return glance
+
+
+def restart_cinder(cinder_volume_only=True):
+    execute_assert_success(["openstack-service", "restart",
+                            "cinder-volume" if cinder_volume_only else "cinder"])
+    sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
 
 
 class NotReadyException(Exception):
@@ -112,6 +116,8 @@ class NoFCPortsException(Exception):
 
 
 class OpenStackTestCase(TestCase):
+    prefer_fc = True
+
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
@@ -125,9 +131,9 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self):
+    def provisioning_pool_context(self, provisioning='thick'):
         pool = self.infinipy.types.Pool.create(self.infinipy)
-        with self.cinder_context(self.infinipy, pool):
+        with self.cinder_context(self.infinipy, pool, provisioning):
             yield pool
         pool.purge()
 
@@ -144,7 +150,7 @@ class OpenStackTestCase(TestCase):
     def wait_for_object_creation(self, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
-            if cinder_object.status in ("creating", ):
+            if cinder_object.status in ("creating", "downloading"):
                 cinder_object.get()
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
@@ -163,9 +169,11 @@ class OpenStackTestCase(TestCase):
 
         poll()
 
-    def _create_volume(self, size_in_gb, volume_type=None, source_volid=None, timeout=30):
+    def _create_volume(self, size_in_gb, volume_type=None, source_volid=None, imageRef=None, timeout=30):
         cinder_volume = self.get_cinder_client().volumes.create(size_in_gb,
-                                                                volume_type=volume_type, source_volid=source_volid)
+                                                                volume_type=volume_type,
+                                                                source_volid=source_volid,
+                                                                imageRef=imageRef)
         if timeout:
             self.wait_for_object_creation(cinder_volume, timeout=timeout)
         self.assertIn(cinder_volume.status, ("available", ))
@@ -173,7 +181,11 @@ class OpenStackTestCase(TestCase):
 
     def create_volume(self, size_in_gb, pool=None, timeout=30):
         volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout)
+        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout,)
+
+    def create_volume_from_image(self, size_in_gb, pool=None, image=None, timeout=30):
+        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
+        return self._create_volume(size_in_gb, volume_type=volume_type, imageRef=image.id, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
         cinder_snapshot = self.get_cinder_client().volume_snapshots.create(cinder_volume.id)
@@ -218,6 +230,13 @@ class OpenStackTestCase(TestCase):
         yield cinder_clone
         self.delete_cinder_object(cinder_clone, timeout)
 
+    @contextmanager
+    def cinder_image_context(self, size_in_gb, pool, image, timeout=60, count=1):
+        cinder_volumes = [self.create_volume_from_image(size_in_gb, pool, image, timeout) for index in xrange(count)]
+        yield cinder_volumes
+        for cinder_volume in cinder_volumes:
+            self.delete_cinder_object(cinder_volume)
+
     def get_connector(self):
         raise NotImplementedError()
 
@@ -252,11 +271,14 @@ class RealTestCaseMixin(object):
     def setup_host(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
+        prepare_host()
+        ensure_package_is_installed()
         cls.cleanup_infiniboxes_from_cinder()
 
     @classmethod
     def teardown_host(cls):
         cls.cleanup_infiniboxes_from_cinder()
+        remove_package()
 
     @classmethod
     def setup_infinibox(cls):
@@ -282,9 +304,11 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
-    def cinder_context(self, infinipy, pool):
+    def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
-            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456")
+            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
+                               thick_provisioning=provisioning.lower() == 'thick',
+                               prefer_fc=self.prefer_fc)
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
@@ -295,6 +319,10 @@ class RealTestCaseMixin(object):
             config.disable(config_parser, key)
             config.remove(config_parser, key)
         restart_cinder()
+
+    def get_cirros_image(self):
+        glance = get_glance_client()
+        return glance.images.find(name='cirros')
 
 
 class MockTestCaseMixin(object):
@@ -330,11 +358,12 @@ class MockTestCaseMixin(object):
 
     @classmethod
     @contextmanager
-    def cinder_context(cls, infinipy, pool):
+    def cinder_context(cls, infinipy, pool, provisioning='thick'):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
         volume_driver_config.update(san_ip=infinipy.get_hostname(),
                                     infinidat_pool_id=pool.get_id(),
-                                    san_login="admin", san_password="123456")
+                                    san_login="admin", san_password="123456",
+                                    infinidat_provision_type=provisioning)
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
@@ -353,7 +382,17 @@ class MockTestCaseMixin(object):
                 return
             raise NotFound(cinder_object.id)
 
-        def create(size, volume_type=None, source_volid=None):
+        def consume_space(cinder_volume):
+            from infinipy import System
+            from capacity import GB
+            [volume] = [item for item in cls.infinipy.get_volumes()
+                        if item.get_metadata('cinder_id') == cinder_volume.id]
+            for simulator in cls.smock.get_inventory()._simulators:
+                if simulator.get_serial() != volume.get_system().get_serial():
+                    continue
+                simulator.volumes.get_by_name(volume.get_name()).consume(0*GB, 1*GB)
+
+        def create(size, volume_type=None, source_volid=None, imageRef=None):
             def delete(cinder_volume):
                 cinder_volume.status = 'deleting'
                 cls.volumes.pop(cinder_volume.id)
@@ -373,6 +412,8 @@ class MockTestCaseMixin(object):
 
             if source_volid is None: # new volume
                 volume_driver.create_volume(cinder_volume)
+                if imageRef is not None:
+                    consume_space(cinder_volume)
             else: # new clone
                 cinder_volume.source_volid = source_volid
                 volume_driver.create_cloned_volume(cinder_volume, cls.volumes[source_volid])
@@ -428,10 +469,26 @@ class MockTestCaseMixin(object):
     def teardown_infinibox(cls):
         pass
 
+    def get_cirros_image(self):
+        return Munch({u'status': u'active',
+                      u'name': u'cirros', u'deleted': False,
+                      u'container_format': u'bare',
+                      u'created_at': u'2014-03-12T13:45:43',
+                      u'disk_format': u'qcow2',
+                      u'updated_at': u'2014-03-12T13:48:08',
+                      u'properties': {},
+                      u'owner':u'cf53c6fafaf74ef7ab603c2f47ae4221',
+                      u'protected': False, u'min_ram': 0,
+                      u'checksum': u'd972013792949d0d3ba628fbe8685bce',
+                      u'min_disk': 0, u'is_public': True, u'deleted_at': None,
+                      u'id': u'd8b8a450-46e4-4428-935e-aec82925c262',
+                      u'size': 13147648})
+
 
 class OpenStackISCSITestCase(OpenStackTestCase):
 
     ISCSI_GW_SLEEP_TIME = 10
+    prefer_fc = False
 
     def get_connector(self):
         return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
@@ -451,7 +508,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
-        cls.create_host_object_for_iscsi_client()
         cls.connect_to_iscsi_manager()
         cls.iscsi_manager_poll()
 
@@ -459,100 +515,65 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def tearDownClass(cls):
         cls.disconnect_from_iscsi_manager()
         cls.destroy_iscsi_manager_configuration()
-        try:
-            cls.host.delete()
-        except:
-            pass
         super(OpenStackISCSITestCase, cls).tearDownClass()
 
     @classmethod
-    def create_host_object_for_iscsi_client(cls):
-        def _int_to_16_bit_hex(n):
-            return hex(n % (2**16-1))[2:].zfill(4)
-
-        def _int_to_12_bit_wwn_format(n):
-            return hex(n % (2**12-1))[2:].zfill(3)
-
-        NPIV_64BIT_WWPN_TEMPLATE = "2{12bit_host_counter}{24bit_oui}{16bit_system_serial}{8bit_gateway_id}"
-        INFINIDAT_OUI = "742b0f"
-
-        node_id, port_id = cls.get_iscsi_port()
-        gateway_id = str(node_id)+str(port_id)
-
-        kwargs = {
-            "12bit_host_counter": _int_to_12_bit_wwn_format(1),
-              "24bit_oui": INFINIDAT_OUI,
-              "16bit_system_serial": _int_to_16_bit_hex(cls.infinipy.get_serial()),
-              "8bit_gateway_id": gateway_id
-        }
-
-        fc_port_string = NPIV_64BIT_WWPN_TEMPLATE.format(**kwargs)
-        client_iqn = cls.get_iscsi_initiator()
-        cls.host = cls.infinipy.objects.Host.create()
-        cls.host.set_metadata("iscsi_manager_iqn", client_iqn)
-        cls.host.add_fc_port(fc_port_string)
-
-        # zone this new fc port with infinibox
-        from infi.vendata.integration_tests.zoning import FcManager
-        from infi.dtypes.wwn import WWN
-        system_wwn = [wwn for wwn in cls.infinipy.get_fiber_target_addresses() if str(wwn)[-2:]== fc_port_string[-2:]][0]
-        host_wwn = WWN(fc_port_string)
-        FcManager().create_zone([host_wwn, system_wwn])
-
-    @classmethod
     def connect_to_iscsi_manager(cls):
-        execute(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
-        execute(["iscsiadm", "-m", "node" , "-L" ,"all"])
+        execute_assert_success(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
+        execute_assert_success(["iscsiadm", "-m", "node" , "-L" ,"all"])
 
     @classmethod
     def disconnect_from_iscsi_manager(cls):
         execute(["iscsiadm", "-m", "node" , "-U" ,"all"])
 
     @classmethod
+    def _install_scst_for_current_kernel_or_skip_test(cls):
+        kernel_version = execute_assert_success(["uname", "-r"]).get_stdout().strip()
+        package = "scst-{}.x86_64".format(kernel_version)
+        try:
+            execute_assert_success(["yum", "install", "-y", package])
+        except ExecutionError, error:
+            logger.debug("yum install package {} failed, below is stdout and stderr".format(package))
+            logger.debug(error.get_stdout())
+            logger.debug(error.get_stderr())
+            if "No package" in error.result.get_stderr() + error.result.get_stdout():
+                raise SkipTest("no scst package for kernel {}".format(kernel_version))
+            raise
+
+    @classmethod
     def install_iscsi_manager(cls):
         execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
-        execute(["yum", "install", "-y", "iscsi-manager"])
-        execute(["yum", "install", "-y", "scst-2.6.32-431.17.1.el6.iscsigw.x86_64.x86_64"])
-        execute(["yum", "install", "-y", "scstadmin.x86_64"])
-        execute(["/etc/init.d/tgtd", "stop"])
+        cls._install_scst_for_current_kernel_or_skip_test()
+        execute_assert_success(["yum", "install", "-y", "iscsi-manager"])
+        execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"])
+        if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
+            execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])
         execute(["yum", "install", "-y", "lsscsi"])
 
     @classmethod
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
-        execute(["iscsi-manager", "config", "init"])
-        execute(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "admin", "123456"])
+        execute_assert_success(["iscsi-manager", "config", "init"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
-        execute(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll
+            iscsi-manager poll --lab-manual-zoning
             sleep {}
         done
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
-        execute(["chmod", "+x", "./iscsi-poll.sh"])
+        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
 
     @classmethod
     def get_iscsi_port(cls):
-        # TODO refactor using infi.stroagemodel
-        import re
-        sg_inq_output = execute(["""
-            for i in `lsscsi | grep "NFINIDAT"| awk "{print $1}" | tr -d "[]"`;
-            do  ls /sys/class/scsi_device/$i/device/scsi_generic ;
-            done | while read line; do sg_inq -p 0x83 /dev/$line | grep "Relative target port:";
-            done"""], shell=True).get_stdout()
-        fc_ports = re.findall('\s*Relative target port: (0x.+)\s*', sg_inq_output)
-        if not fc_ports:
-            raise NoFCPortsException("Could not find any fc ports")
+        from infi.storagemodel.vendor.infinidat.shortcuts import get_infinidat_storage_controller_devices
 
-        # Assume only one port
-        hex_port = int(fc_ports[0], 16)
-        node_id = (hex_port >> 8) & 0xFF
-        port_id = hex_port & 0xFF
-        return node_id, port_id
+        fc_port = get_infinidat_storage_controller_devices()[0].get_vendor().get_fc_port()
+        return fc_port.get_node_id(), fc_port.get_port_id()
 
     @classmethod
     def iscsi_manager_poll(cls):

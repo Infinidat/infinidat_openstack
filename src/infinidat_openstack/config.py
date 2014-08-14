@@ -98,7 +98,7 @@ def remove(config_parser, key):
         config_parser.remove_section(key)
 
 
-def apply(config_parser, address, pool_name, username, password, thick_provisioning=False):
+def apply(config_parser, address, pool_name, username, password, thick_provisioning=False, prefer_fc=False):
     from infinipy import System
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = System(address, username=username, password=password)
@@ -117,6 +117,7 @@ def apply(config_parser, address, pool_name, username, password, thick_provision
     for setting in SETTINGS:
         config_parser.set(key, setting[1], locals()[setting[0]])
     config_parser.set(key, "infinidat_provision_type", "thick" if thick_provisioning else "thin")
+    config_parser.set(key, "infinidat_prefer_fc", prefer_fc)
     if enabled:
         enable(config_parser, key)
     return key

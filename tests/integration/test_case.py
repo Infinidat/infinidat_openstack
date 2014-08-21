@@ -318,7 +318,7 @@ class RealTestCaseMixin(object):
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
-        with self.cinder_logs_context():
+        with self.cinder_logs_context(), self.iscsi_manager_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
@@ -564,6 +564,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+        with logs_context(ISCSIMANAGER_LOGDIR):
+            execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
         poll_script = """#!/bin/sh
         while true; do
             iscsi-manager poll --lab-manual-zoning

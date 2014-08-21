@@ -19,6 +19,7 @@ from tests.test_common import ensure_package_is_installed, remove_package
 
 CINDER_LOGDIR = "/var/log/cinder"
 KEYSTONE_LOGDIR = "/var/log/keystone"
+ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
@@ -301,6 +302,11 @@ class RealTestCaseMixin(object):
     @contextmanager
     def cinder_logs_context(self):
         with logs_context(CINDER_LOGDIR):
+            yield
+
+    @contextmanager
+    def iscsi_manager_logs_context(self):
+        with logs_context(ISCSIMANAGER_LOGDIR):
             yield
 
     @contextmanager

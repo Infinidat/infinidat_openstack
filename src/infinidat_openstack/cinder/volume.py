@@ -211,7 +211,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: no host with inq {!r} in its metadata exists on box".format(initiator))
+        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: no host with inq {0!r} in its metadata exists on box".format(initiator))
 
     def _find_target_by_metadata_change(self, old_metadata, new_metadata):
         for key in new_metadata:
@@ -232,7 +232,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={}, id={}, metadata={})"
+        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0}, id={1}, metadata={2})"
         message = message.format(host.get_name(), host.get_id(), old_metadata)
         raise ISCSIGWVolumeNotExposedException(message)
 
@@ -294,7 +294,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         preferred_fc = self.configuration.infinidat_prefer_fc
         fc, iscsi = connector.get('wwpns'), connector.get('initiator')
         if not fc and not iscsi:
-            raise exception.Invalid(translate(("no wwpns or iscsi initiator in connector {}".format(connector))))
+            raise exception.Invalid(translate(("no wwpns or iscsi initiator in connector {0}".format(connector))))
         elif fc and (not iscsi or preferred_fc):
             return protocol_methods['fc'](cinder_volume, connector, *args, **kwargs)
         else:
@@ -328,7 +328,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self._set_host_metadata(host)
         metadata_before_unmap = host.get_metadata()
         host.unmap_volume(infinidat_volume, force=force)
-        LOG.info("Volume(name={!r}, id={}) unmapped from Host (name={!r}, id={}) successfully".format(
+        LOG.info("Volume(name={0!r}, id={1}) unmapped from Host (name={2!r}, id={3}) successfully".format(
                     infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be unexposed via the gateway

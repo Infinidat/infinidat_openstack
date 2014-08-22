@@ -493,7 +493,7 @@ class MockTestCaseMixin(object):
 
 class OpenStackISCSITestCase(OpenStackTestCase):
 
-    ISCSI_GW_SLEEP_TIME = 10
+    ISCSI_GW_SLEEP_TIME = 3
     prefer_fc = False
 
     def get_connector(self):

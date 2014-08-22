@@ -329,7 +329,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         metadata_before_unmap = host.get_metadata()
         host.unmap_volume(infinidat_volume, force=force)
         LOG.info("Volume(name={!r}, id={}) unmapped from Host (name={!r}, id={}) successfully".format(
-                    host.get_name(), host.get_id(), infinidat_volume.get_name(), infinidat_volume.get_id()))
+                    infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be unexposed via the gateway
         self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)

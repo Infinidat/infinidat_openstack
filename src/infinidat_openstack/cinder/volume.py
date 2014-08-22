@@ -211,7 +211,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: virtual host doesn't exist on box")
+        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: no host with inq {!r} in its metadata exists on box".format(initiator))
 
     def _find_target_by_metadata_change(self, old_metadata, new_metadata):
         for key in new_metadata:
@@ -226,13 +226,15 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
-            target_host = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
-            if target_host:
-                return target_host
+            target_iscsi_gateway = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
+            if target_iscsi_gateway:
+                return target_iscsi_gateway
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWVolumeNotExposedException("_wait_for_any_target_to_update_lun_mappings_no_host: virtual host doesn't exist on box")
+        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={}, id={}, metadata={})"
+        message = message.format(host.get_name(), host.get_id(), old_metadata)
+        raise ISCSIGWVolumeNotExposedException(message)
 
     @_infinipy_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
@@ -326,6 +328,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self._set_host_metadata(host)
         metadata_before_unmap = host.get_metadata()
         host.unmap_volume(infinidat_volume, force=force)
+        LOG.info("Volume(name={!r}, id={}) unmapped from Host (name={!r}, id={}) successfully".format(
+                    host.get_name(), host.get_id(), infinidat_volume.get_name(), infinidat_volume.get_id()))
 
         # We wait for the volume to be unexposed via the gateway
         self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)

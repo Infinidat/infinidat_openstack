@@ -15,6 +15,8 @@ from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
 from tests.test_common import ensure_package_is_installed, remove_package
+from logging import getLogger
+logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
@@ -31,7 +33,12 @@ def logfile_context(logfile_path):
             yield
         finally:
             print '--- {} ---'.format(logfile_path)
-            print fd.read()
+            new_data = fd.read()
+            if new_data:
+                print new_data
+            else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
+                with open(logfile_path) as fd:
+                    print fd.read()
             print '--- end ---'.format(logfile_path)
 
 
@@ -590,6 +597,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def destroy_iscsi_manager_configuration(cls):
         execute(['pkill -f "sh ./iscsi-poll.sh"'], shell=True)
+        logger.debug("killed iscsi-manager")
         execute(["rm", "-rf", "./iscsi-poll.sh"])
         execute(["killall", "iscsi-manager"])
         execute(["rm","-rf","./poll.lock"])

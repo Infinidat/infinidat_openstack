@@ -77,12 +77,13 @@ class ProvisioningTestsMixin(object):
             self.assertEquals(metdata[key], str(value))
 
     def test_volume_mapping(self):
-        with self.provisioning_pool_context() as pool:
-            with self.assert_volume_count() as get_diff:
-                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
-                    [infinibox_volume], _ = get_diff()
-                    self.assert_volume_metadata(cinder_volume, infinibox_volume)
-                    self.assert_cinder_mapping(cinder_volume, infinibox_volume)
+        with self._cinder_debug_context():
+            with self.provisioning_pool_context() as pool:
+                with self.assert_volume_count() as get_diff:
+                    with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                        [infinibox_volume], _ = get_diff()
+                        self.assert_volume_metadata(cinder_volume, infinibox_volume)
+                        self.assert_cinder_mapping(cinder_volume, infinibox_volume)
 
     def test_create_snapshot(self):
         with self.provisioning_pool_context() as pool:
@@ -162,6 +163,14 @@ class ProvisioningTestsMixin(object):
             yield
         finally:
             self._set_cinder_config_value("use_multipath_for_image_xfer", "false")
+
+    @contextmanager
+    def _cinder_debug_context(self):
+        self._set_cinder_config_value("debug", "true")
+        try:
+            yield
+        finally:
+            self._set_cinder_config_value("debug", "false")
 
     def test_copy_image_to_volume(self):
         cirrus_image = self.get_cirros_image()

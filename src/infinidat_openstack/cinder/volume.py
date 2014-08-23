@@ -244,7 +244,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0}, id={1}, metadata={2})"
+        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0!r}, id={1}, metadata={2})"
         message = message.format(host.get_name(), host.get_id(), old_metadata)
         raise ISCSIGWVolumeNotExposedException(message)
 

@@ -27,6 +27,7 @@ volume_opts = [
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=15),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
     cfg.BoolOpt('infinidat_prefer_fc', help='Use wwpns from connector if supplied with iSCSI initiator', default=False),
+    cfg.BoolOpt('infinidat_allow_pool_not_found', help='allow the driver initialization when the pool not found', default=False),
 ]
 
 # Since we no longer inherit from SanDriver we have to read those config values
@@ -143,6 +144,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
+        from infinipy.system.exceptions import NoObjectFound
         for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
                 raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
@@ -155,7 +157,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self.system = System(self.configuration.san_ip,
                              username=self.configuration.san_login,
                              password=self.configuration.san_password)
-        self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
+
+        try:
+            self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
+        except NoObjectFound:
+            if not self.configuration.infinidat_allow_pool_not_found:
+                raise
+            LOG.info("InfiniBox pool not found, but infinidat_allow_pool_not_found is set")
 
     # Since we no longer inherit from SanDriver, we have to implement the four following methods:
 
@@ -194,7 +202,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @_infinipy_to_cinder_exceptions
     def delete_volume(self, cinder_volume):
-        infinidat_volume = self._find_volume(cinder_volume)
+        from infinipy.system.exceptions import NoObjectFound
+        try:
+            infinidat_volume = self._find_volume(cinder_volume)
+        except NoObjectFound:
+            LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
         metadata = infinidat_volume.get_metadata()
         if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
             infinidat_volume.get_parent().delete()
@@ -388,17 +400,23 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         return self.volume_stats
 
     def _update_volume_stats(self):
+        from infinipy.system.exceptions import NoObjectFound
         """Retrieve stats info from volume group."""
 
         data = {}
-        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self._get_pool().get_id())
+        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self.configuration.infinidat_pool_id)
         data["volume_backend_name"] = system_and_pool_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
 
-        data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
-        data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
+        try:
+            data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
+            data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
+        except NoObjectFound:
+            data['total_capaceity_gb'] = 0
+            data['free_capacity_gb'] = 0
+
         data['reserved_percentage'] = 0
         data['QoS_support'] = False
         self.volume_stats = data

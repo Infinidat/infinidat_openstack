@@ -281,6 +281,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         metadata_before_map = host.get_metadata()
 
         lun = host.map_volume(infinidat_volume)
+        LOG.info("Volume(name={0!r}, id={1}) mapped to Host (name={2!r}, id={3}) successfully".format(
+                    infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be exposed via the gateway
         target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)

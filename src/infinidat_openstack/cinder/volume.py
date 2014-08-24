@@ -28,6 +28,7 @@ volume_opts = [
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
     cfg.BoolOpt('infinidat_prefer_fc', help='Use wwpns from connector if supplied with iSCSI initiator', default=False),
     cfg.BoolOpt('infinidat_allow_pool_not_found', help='allow the driver initialization when the pool not found', default=False),
+    cfg.BoolOpt('infinidat_purge_volume_on_deletion', help='allow the driver to purge a volume (delete mappings and snapshots if necessary)', default=False),
 ]
 
 # Since we no longer inherit from SanDriver we have to read those config values
@@ -208,10 +209,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         except NoObjectFound:
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
         metadata = infinidat_volume.get_metadata()
+        delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
         if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
-            infinidat_volume.get_parent().delete()
+            getattr(infinidat_volume.get_parent(), delete_method_name)()
         else:
-            infinidat_volume.delete()
+            getattr(infinidat_volume, delete_method_name)()
 
     def _wait_for_iscsi_host(self, initiator):
         start = time()

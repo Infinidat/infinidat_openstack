@@ -257,7 +257,7 @@ class RealTestCaseMixin(object):
         def cleanup_volumes():
             cinder_client = cls.get_cinder_client()
             for volume in cinder_client.volumes.list():
-                volume.delete()
+                volume.force_delete()
 
         def cleanup_volume_types():
             cinder_client = cls.get_cinder_client()
@@ -321,7 +321,9 @@ class RealTestCaseMixin(object):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
                                thick_provisioning=provisioning.lower() == 'thick',
-                               prefer_fc=self.prefer_fc)
+                               prefer_fc=self.prefer_fc,
+                               infinidat_allow_pool_not_found=True,
+                               infinidat_purge_volume_on_deletion=True)
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()

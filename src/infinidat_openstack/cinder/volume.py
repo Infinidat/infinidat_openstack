@@ -208,6 +208,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             infinidat_volume = self._find_volume(cinder_volume)
         except NoObjectFound:
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
+            return
         metadata = infinidat_volume.get_metadata()
         delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
         if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes

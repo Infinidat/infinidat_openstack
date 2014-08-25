@@ -567,14 +567,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["yum", "install", "-y", "lsscsi"])
 
     @classmethod
-    def configure_iscsi_manager(cls):
-        cls.destroy_iscsi_manager_configuration()
-        execute_assert_success(["iscsi-manager", "config", "init"])
-        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
-        node_id, port_id = cls.get_iscsi_port()
-        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
-        with logs_context(ISCSIMANAGER_LOGDIR):
-            execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
+    def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
         while true; do
             iscsi-manager poll --lab-manual-zoning --with-traces &> /dev/null
@@ -584,6 +577,17 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
+
+    @classmethod
+    def configure_iscsi_manager(cls):
+        cls.destroy_iscsi_manager_configuration()
+        execute_assert_success(["iscsi-manager", "config", "init"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
+        node_id, port_id = cls.get_iscsi_port()
+        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+        with logs_context(ISCSIMANAGER_LOGDIR):
+            execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
+        cls.start_iscsi_manager()
 
     @classmethod
     def get_iscsi_port(cls):
@@ -630,3 +634,14 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
                          ip='127.0.0.1',
                          wwns=wwns,
                          wwpns=wwns)
+
+
+class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
+    @classmethod
+    def start_iscsi_manager(cls):
+        poll_script = """#!/bin/sh
+        iscsi-manager poll-infinite 3 --lab-manual-zoning --with-traces &> /dev/null
+        """
+        open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
+        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
+        execute_async(["sh", "./iscsi-poll.sh"])

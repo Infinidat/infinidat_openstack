@@ -577,7 +577,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll --lab-manual-zoning --with-traces
+            iscsi-manager poll --lab-manual-zoning --with-traces &> /dev/null
             sleep {}
         done
         """

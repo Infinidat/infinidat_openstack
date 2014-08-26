@@ -288,7 +288,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                     infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be exposed via the gateway
-        target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
+        target_host = self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_map)
 
         iscsi_target_metadata = target_host.get_metadata()
         target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')

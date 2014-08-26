@@ -237,7 +237,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 return self.system.objects.Host.get(id=int(host_id))
         return None
 
-    def _wait_for_any_target_to_update_lun_mappings_no_host(self, host, old_metadata):
+    def _wait_for_any_target_to_update_lun_mappings_on_host(self, host, old_metadata):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
@@ -247,7 +247,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        message = "_wait_for_any_target_to_update_lun_mappings_no_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0!r}, id={1}, metadata={2})"
+        message = "_wait_for_any_target_to_update_lun_mappings_on_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0!r}, id={1}, metadata={2})"
         message = message.format(host.get_name(), host.get_id(), old_metadata)
         raise ISCSIGWVolumeNotExposedException(message)
 
@@ -349,7 +349,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                     infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be unexposed via the gateway
-        self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)
+        self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_unmap)
 
     @_infinipy_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):

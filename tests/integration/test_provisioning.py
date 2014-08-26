@@ -179,8 +179,6 @@ class ProvisioningTestsMixin(object):
             with self._use_multipath_for_image_xfer_context():
                 self._do_image_copy_and_assert_size(pool, cirrus_image)
 
-
-class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     @contextmanager
     def _cinder_quota_context(self, count):
         self._set_cinder_config_values(use_default_quota_class="false",
@@ -200,6 +198,9 @@ class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase,
                 with self._cinder_quota_context(50):
                     self._do_image_copy_and_assert_size(pool, cirrus_image, 50)
 
+
+class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
+    pass
 
 class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):
     pass

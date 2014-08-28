@@ -15,10 +15,13 @@ from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
 from tests.test_common import ensure_package_is_installed, remove_package
+from logging import getLogger
+logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
 KEYSTONE_LOGDIR = "/var/log/keystone"
+ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
@@ -30,7 +33,12 @@ def logfile_context(logfile_path):
             yield
         finally:
             print '--- {} ---'.format(logfile_path)
-            print fd.read()
+            new_data = fd.read()
+            if new_data:
+                print new_data
+            else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
+                with open(logfile_path) as fd:
+                    print fd.read()
             print '--- end ---'.format(logfile_path)
 
 
@@ -249,7 +257,7 @@ class RealTestCaseMixin(object):
         def cleanup_volumes():
             cinder_client = cls.get_cinder_client()
             for volume in cinder_client.volumes.list():
-                volume.delete()
+                volume.force_delete()
 
         def cleanup_volume_types():
             cinder_client = cls.get_cinder_client()
@@ -304,15 +312,22 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
+    def iscsi_manager_logs_context(self):
+        with logs_context(ISCSIMANAGER_LOGDIR):
+            yield
+
+    @contextmanager
     def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
                                thick_provisioning=provisioning.lower() == 'thick',
-                               prefer_fc=self.prefer_fc)
+                               prefer_fc=self.prefer_fc,
+                               infinidat_allow_pool_not_found=True,
+                               infinidat_purge_volume_on_deletion=True)
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
-        with self.cinder_logs_context():
+        with self.cinder_logs_context(), self.iscsi_manager_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
@@ -487,7 +502,7 @@ class MockTestCaseMixin(object):
 
 class OpenStackISCSITestCase(OpenStackTestCase):
 
-    ISCSI_GW_SLEEP_TIME = 10
+    ISCSI_GW_SLEEP_TIME = 1
     prefer_fc = False
 
     def get_connector(self):
@@ -552,21 +567,27 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["yum", "install", "-y", "lsscsi"])
 
     @classmethod
-    def configure_iscsi_manager(cls):
-        cls.destroy_iscsi_manager_configuration()
-        execute_assert_success(["iscsi-manager", "config", "init"])
-        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
-        node_id, port_id = cls.get_iscsi_port()
-        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+    def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll --lab-manual-zoning
+            iscsi-manager poll --lab-manual-zoning --with-traces &> /dev/null
             sleep {}
         done
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
         execute_async(["sh", "./iscsi-poll.sh"])
+
+    @classmethod
+    def configure_iscsi_manager(cls):
+        cls.destroy_iscsi_manager_configuration()
+        execute_assert_success(["iscsi-manager", "config", "init"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
+        node_id, port_id = cls.get_iscsi_port()
+        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
+        with logs_context(ISCSIMANAGER_LOGDIR):
+            execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
+        cls.start_iscsi_manager()
 
     @classmethod
     def get_iscsi_port(cls):
@@ -582,6 +603,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def destroy_iscsi_manager_configuration(cls):
         execute(['pkill -f "sh ./iscsi-poll.sh"'], shell=True)
+        logger.debug("killed iscsi-manager")
         execute(["rm", "-rf", "./iscsi-poll.sh"])
         execute(["killall", "iscsi-manager"])
         execute(["rm","-rf","./poll.lock"])
@@ -612,3 +634,14 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
                          ip='127.0.0.1',
                          wwns=wwns,
                          wwpns=wwns)
+
+
+class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
+    @classmethod
+    def start_iscsi_manager(cls):
+        poll_script = """#!/bin/sh
+        iscsi-manager poll-infinite 3 --lab-manual-zoning --with-traces &> /dev/null
+        """
+        open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
+        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
+        execute_async(["sh", "./iscsi-poll.sh"])

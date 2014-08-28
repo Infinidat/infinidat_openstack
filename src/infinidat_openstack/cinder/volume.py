@@ -27,6 +27,8 @@ volume_opts = [
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=15),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
     cfg.BoolOpt('infinidat_prefer_fc', help='Use wwpns from connector if supplied with iSCSI initiator', default=False),
+    cfg.BoolOpt('infinidat_allow_pool_not_found', help='allow the driver initialization when the pool not found', default=False),
+    cfg.BoolOpt('infinidat_purge_volume_on_deletion', help='allow the driver to purge a volume (delete mappings and snapshots if necessary)', default=False),
 ]
 
 # Since we no longer inherit from SanDriver we have to read those config values
@@ -143,6 +145,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
+        from infinipy.system.exceptions import NoObjectFound
         for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
                 raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
@@ -155,7 +158,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self.system = System(self.configuration.san_ip,
                              username=self.configuration.san_login,
                              password=self.configuration.san_password)
-        self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
+
+        try:
+            self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
+        except NoObjectFound:
+            if not self.configuration.infinidat_allow_pool_not_found:
+                raise
+            LOG.info("InfiniBox pool not found, but infinidat_allow_pool_not_found is set")
 
     # Since we no longer inherit from SanDriver, we have to implement the four following methods:
 
@@ -194,12 +203,18 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @_infinipy_to_cinder_exceptions
     def delete_volume(self, cinder_volume):
-        infinidat_volume = self._find_volume(cinder_volume)
+        from infinipy.system.exceptions import NoObjectFound
+        try:
+            infinidat_volume = self._find_volume(cinder_volume)
+        except NoObjectFound:
+            LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
+            return
         metadata = infinidat_volume.get_metadata()
+        delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
         if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
-            infinidat_volume.get_parent().delete()
+            getattr(infinidat_volume.get_parent(), delete_method_name)()
         else:
-            infinidat_volume.delete()
+            getattr(infinidat_volume, delete_method_name)()
 
     def _wait_for_iscsi_host(self, initiator):
         start = time()
@@ -211,7 +226,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: virtual host doesn't exist on box")
+        raise ISCSIGWTimeoutException("_wait_for_iscsi_host: no host with inq {0!r} in its metadata exists on box".format(initiator))
 
     def _find_target_by_metadata_change(self, old_metadata, new_metadata):
         for key in new_metadata:
@@ -222,17 +237,19 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 return self.system.objects.Host.get(id=int(host_id))
         return None
 
-    def _wait_for_any_target_to_update_lun_mappings_no_host(self, host, old_metadata):
+    def _wait_for_any_target_to_update_lun_mappings_on_host(self, host, old_metadata):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
-            target_host = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
-            if target_host:
-                return target_host
+            target_iscsi_gateway = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
+            if target_iscsi_gateway:
+                return target_iscsi_gateway
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
 
-        raise ISCSIGWVolumeNotExposedException("_wait_for_any_target_to_update_lun_mappings_no_host: virtual host doesn't exist on box")
+        message = "_wait_for_any_target_to_update_lun_mappings_on_host: no iscsi-gateway found that performed a change against the iSCSI client host (name={0!r}, id={1}, metadata={2})"
+        message = message.format(host.get_name(), host.get_id(), old_metadata)
+        raise ISCSIGWVolumeNotExposedException(message)
 
     @_infinipy_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
@@ -267,9 +284,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         metadata_before_map = host.get_metadata()
 
         lun = host.map_volume(infinidat_volume)
+        LOG.info("Volume(name={0!r}, id={1}) mapped to Host (name={2!r}, id={3}) successfully".format(
+                    infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be exposed via the gateway
-        target_host = self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_map)
+        target_host = self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_map)
 
         iscsi_target_metadata = target_host.get_metadata()
         target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
@@ -292,7 +311,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         preferred_fc = self.configuration.infinidat_prefer_fc
         fc, iscsi = connector.get('wwpns'), connector.get('initiator')
         if not fc and not iscsi:
-            raise exception.Invalid(translate(("no wwpns or iscsi initiator in connector {}".format(connector))))
+            raise exception.Invalid(translate(("no wwpns or iscsi initiator in connector {0}".format(connector))))
         elif fc and (not iscsi or preferred_fc):
             return protocol_methods['fc'](cinder_volume, connector, *args, **kwargs)
         else:
@@ -326,9 +345,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self._set_host_metadata(host)
         metadata_before_unmap = host.get_metadata()
         host.unmap_volume(infinidat_volume, force=force)
+        LOG.info("Volume(name={0!r}, id={1}) unmapped from Host (name={2!r}, id={3}) successfully".format(
+                    infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
         # We wait for the volume to be unexposed via the gateway
-        self._wait_for_any_target_to_update_lun_mappings_no_host(host, metadata_before_unmap)
+        self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_unmap)
 
     @_infinipy_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
@@ -384,17 +405,23 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         return self.volume_stats
 
     def _update_volume_stats(self):
+        from infinipy.system.exceptions import NoObjectFound
         """Retrieve stats info from volume group."""
 
         data = {}
-        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self._get_pool().get_id())
+        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self.configuration.infinidat_pool_id)
         data["volume_backend_name"] = system_and_pool_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
 
-        data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
-        data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
+        try:
+            data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
+            data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
+        except NoObjectFound:
+            data['total_capaceity_gb'] = 0
+            data['free_capacity_gb'] = 0
+
         data['reserved_percentage'] = 0
         data['QoS_support'] = False
         self.volume_stats = data

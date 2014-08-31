@@ -527,7 +527,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             # this can fail,
             # for example, when cinder-volume runs under user 'cinder' which does not have permissions to read /dev/sdX
             # so in case this fails, we just call sync
-            LOG.exception("failed to flush cache for specific device, will just call sync instead")
+            LOG.debug("failed to flush cache for specific device, will just call sync instead")
             try:
                 self._call_sync()
             except:

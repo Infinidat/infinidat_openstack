@@ -255,12 +255,10 @@ class RealTestCaseMixin(object):
     @classmethod
     def cleanup_infiniboxes_from_cinder(cls):
         def cleanup_volumes():
-            cinder_client = cls.get_cinder_client()
             for volume in cinder_client.volumes.list():
                 volume.force_delete()
 
         def cleanup_volume_types():
-            cinder_client = cls.get_cinder_client()
             for volume_type in cinder_client.volume_types.findall():
                 cinder_client.volume_types.delete(volume_type)
 
@@ -271,8 +269,11 @@ class RealTestCaseMixin(object):
                     config_parser.remove_section(section)
             restart_cinder()
 
+        cinder_client = cls.get_cinder_client()
         cleanup_volumes()
+        assert list(cinder_object.status for cinder_object in cinder_client.volumes.list()) == list()
         cleanup_volume_types()
+        assert list(cinder_client.volume_types.findall()) == list():
         cleanup_volume_backends()
 
     @classmethod

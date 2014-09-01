@@ -273,7 +273,7 @@ class RealTestCaseMixin(object):
         cleanup_volumes()
         assert list(cinder_object.status for cinder_object in cinder_client.volumes.list()) == list()
         cleanup_volume_types()
-        assert list(cinder_client.volume_types.findall()) == list():
+        assert list(cinder_client.volume_types.findall()) == list()
         cleanup_volume_backends()
 
     @classmethod

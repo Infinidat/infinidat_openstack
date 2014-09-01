@@ -512,7 +512,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         libc = CDLL("libc.so.6")
         libc.sync()
         # the call returns before the cache is actually flushed to disk, so we wait a bit
-        sleep(10)
+        sleep(20)
 
     def _flush_caches_to_disk(self, *args, **kwargs):
         # http://blogs.gnome.org/cneumair/2006/02/11/ioctl-fsync-how-to-flush-block-device-buffers

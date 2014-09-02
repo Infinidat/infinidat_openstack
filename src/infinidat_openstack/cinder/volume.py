@@ -26,6 +26,7 @@ volume_opts = [
     cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=30),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
+    cfg.IntOpt('infinidat_sync_sleep_duration', help='number of seconds to sleep after sync (workaround for cinder bug #1352875)', default=10),
     cfg.BoolOpt('infinidat_prefer_fc', help='Use wwpns from connector if supplied with iSCSI initiator', default=False),
     cfg.BoolOpt('infinidat_allow_pool_not_found', help='allow the driver initialization when the pool not found', default=False),
     cfg.BoolOpt('infinidat_purge_volume_on_deletion', help='allow the driver to purge a volume (delete mappings and snapshots if necessary)', default=False),
@@ -504,15 +505,19 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             ioctl(fd, 4705) # BLKFLSBUF
         finally:
             os.close(fd)
-        # the call returns before the cache is actually flushed to disk, so we wait a bit
-        sleep(10)
+        self._sleep_after_sync()
 
     def _call_sync(self):
         from ctypes import CDLL
         libc = CDLL("libc.so.6")
         libc.sync()
+        libc.sync()
+        libc.sync()
+        self._sleep_after_sync()
+
+    def _sleep_after_sync(self):
         # the call returns before the cache is actually flushed to disk, so we wait a bit
-        sleep(20)
+        sleep(self.configuration.infinidat_sync_sleep_duration)
 
     def _flush_caches_to_disk(self, *args, **kwargs):
         # http://blogs.gnome.org/cneumair/2006/02/11/ioctl-fsync-how-to-flush-block-device-buffers

@@ -163,6 +163,14 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
+    def wait_for_object_extending_operation_to_complete(self, cinder_object, timeout=5):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            if cinder_object.status in ("extending"):
+                cinder_object.get()
+                raise NotReadyException(cinder_object.id, cinder_object.status)
+        poll()
+
     def wait_for_object_deletion(self, cinder_object, timeout=5):
         from cinderclient.exceptions import NotFound
 

@@ -514,7 +514,7 @@ class MockTestCaseMixin(object):
 
 
 class OpenStackISCSITestCase(OpenStackTestCase):
-
+    PLATFORM_TO_SKIP = "centos-6"
     ISCSI_GW_SLEEP_TIME = 1
     prefer_fc = False
 
@@ -533,6 +533,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackISCSITestCase, cls).setUpClass()
+        cls.selective_skip()
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
@@ -636,6 +637,11 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             node_name = open(os.path.join(FC_HOST_DIR, virtual_fc_host, 'node_name')).read().strip().strip('0x')
             open(vport_delete_file_name,'w').write('{}:{}'.format(node_name, port_name))
 
+    @classmethod
+    def selective_skip(cls):
+        import os
+        if cls.PLATFORM_TO_SKIP in os.environ.get("NODE_LABELS", ""):
+            raise SkipTest("skipping this test case on this platform")
 
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
     def get_connector(self):
@@ -650,6 +656,8 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
 
 
 class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
+    PLATFORM_TO_SKIP = "redhat-7"
+
     @classmethod
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh

@@ -31,6 +31,8 @@ import sys
 import os
 import warnings
 warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
+with warnings.catch_warnings():
+    import infinipy # infinipy import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update")

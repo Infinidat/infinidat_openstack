@@ -20,6 +20,7 @@ logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
+VAR_LOG_MESSAGES = "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
@@ -330,6 +331,11 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
+    def var_log_messages_logs_context(self):
+        with logfile_context(VAR_LOG_MESSAGES):
+            yield
+
+    @contextmanager
     def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
@@ -340,7 +346,7 @@ class RealTestCaseMixin(object):
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
-        with self.cinder_logs_context(), self.iscsi_manager_logs_context():
+        with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)

@@ -26,6 +26,15 @@ ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
 
+def print_log(logfile_path, new_data=''):
+    print '--- {} ---'.format(logfile_path)
+    if new_data:
+        print new_data
+    else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
+        with open(logfile_path) as fd:
+            print fd.read()
+    print '--- end ---'.format(logfile_path)
+
 @contextmanager
 def logfile_context(logfile_path):
     with open(logfile_path) as fd:
@@ -33,26 +42,25 @@ def logfile_context(logfile_path):
         try:
             yield
         finally:
-            print '--- {} ---'.format(logfile_path)
             new_data = fd.read()
-            if new_data:
-                print new_data
-            else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
-                with open(logfile_path) as fd:
-                    print fd.read()
-            print '--- end ---'.format(logfile_path)
+            print_log(logfile_path, new_data=new_data)
 
 
 @contextmanager
 def logs_context(logs_dir):
     from glob import glob
     glob_path = path.join(logs_dir, '*.log')
-    contexts = [logfile_context(item) for item in glob(glob_path)]
+    before = glob(glob_path)
+    contexts = [logfile_context(item) for item in before]
     [context.__enter__() for context in contexts]
     try:
         yield
     finally:
         [context.__exit__(None, None, None) for context in contexts]
+        after = glob(glob_path)
+        for new_logfile in (set(after) - set(before)):
+            print_log(new_logfile)
+
 
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):

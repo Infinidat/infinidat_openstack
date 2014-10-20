@@ -587,6 +587,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def install_iscsi_manager(cls):
         execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
+        execute_assert_success(["yum", "makecache"])
         execute_assert_success(["yum", "install", "-y", "iscsi-manager"])
         execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"])
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7

@@ -367,9 +367,10 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.
         snapshot = src_infinidat_volume.create_snapshot(name=self._create_snapshot_name(src_cinder_volume) + "-internal")
-        self._set_basic_metadata(snapshot)
-        snapshot.set_metadata("cinder_id", "")
-        snapshot.set_metadata("internal", "true")
+        self._set_obj_metadata(snapshot, {
+            "cinder_id": "",
+            "internal": "true"
+            })
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         self._set_volume_or_snapshot_metadata(tgt_infinidat_volume, tgt_cinder_volume, delete_parent=True)
@@ -475,20 +476,25 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)
 
     def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
-        infinidat_volume.set_metadata("cinder_id", str(cinder_volume.id))
-        infinidat_volume.set_metadata("delete_parent", str(delete_parent))
-        infinidat_volume.set_metadata("cinder_display_name", str(cinder_volume.display_name))
-        self._set_basic_metadata(infinidat_volume)
+        metadata = {
+            "cinder_id": str(cinder_volume.id),
+            "delete_parent": str(delete_parent),
+            "cinder_display_name": str(cinder_volume.display_name)
+            }
+        self._set_obj_metadata(infinidat_volume, metadata)
 
     def _set_host_metadata(self, infinidat_host):
-        infinidat_host.set_metadata("hostname", get_os_hostname())
-        infinidat_host.set_metadata("platform", get_os_platform())
-        infinidat_host.set_metadata("powertools_version", get_powertools_version())
-        self._set_basic_metadata(infinidat_host)
+        metadata = {
+            "hostname": get_os_hostname(),
+            "platform": get_os_platform(),
+            "powertools_version": get_powertools_version()
+            }
+        self._set_obj_metadata(infinidat_host, metadata)
 
-    def _set_basic_metadata(self, infinidat_volume):
-        infinidat_volume.set_metadata("system", str(SYSTEM_METADATA_VALUE))
-        infinidat_volume.set_metadata("driver_version", str(self.VERSION))
+    def _set_obj_metadata(obj, metadata):
+        metadata["system"] = str(SYSTEM_METADATA_VALUE)
+        metadata["driver_version"] = str(self.VERSION)
+        obj.set_metadata(**metadata)
 
     def _assert_connector(self, connector):
         if ((not u'wwpns' in connector or not connector[u'wwpns']) and

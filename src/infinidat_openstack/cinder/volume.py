@@ -491,7 +491,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             }
         self._set_obj_metadata(infinidat_host, metadata)
 
-    def _set_obj_metadata(obj, metadata):
+    def _set_obj_metadata(self, obj, metadata):
         metadata["system"] = str(SYSTEM_METADATA_VALUE)
         metadata["driver_version"] = str(self.VERSION)
         obj.set_metadata(**metadata)

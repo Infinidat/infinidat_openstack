@@ -20,10 +20,20 @@ logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
+VAR_LOG_MESSAGES = "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 
+
+def print_log(logfile_path, new_data=''):
+    print '--- {} ---'.format(logfile_path)
+    if new_data:
+        print new_data
+    else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
+        with open(logfile_path) as fd:
+            print fd.read()
+    print '--- end ---'.format(logfile_path)
 
 @contextmanager
 def logfile_context(logfile_path):
@@ -32,26 +42,25 @@ def logfile_context(logfile_path):
         try:
             yield
         finally:
-            print '--- {} ---'.format(logfile_path)
             new_data = fd.read()
-            if new_data:
-                print new_data
-            else: # in some runs fd.read() returned an empty string, this is an attempt to deal with this case
-                with open(logfile_path) as fd:
-                    print fd.read()
-            print '--- end ---'.format(logfile_path)
+            print_log(logfile_path, new_data=new_data)
 
 
 @contextmanager
 def logs_context(logs_dir):
     from glob import glob
     glob_path = path.join(logs_dir, '*.log')
-    contexts = [logfile_context(item) for item in glob(glob_path)]
+    before = glob(glob_path)
+    contexts = [logfile_context(item) for item in before]
     [context.__enter__() for context in contexts]
     try:
         yield
     finally:
         [context.__exit__(None, None, None) for context in contexts]
+        after = glob(glob_path)
+        for new_logfile in (set(after) - set(before)):
+            print_log(new_logfile)
+
 
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):
@@ -330,6 +339,11 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
+    def var_log_messages_logs_context(self):
+        with logfile_context(VAR_LOG_MESSAGES):
+            yield
+
+    @contextmanager
     def cinder_context(self, infinipy, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
@@ -340,7 +354,7 @@ class RealTestCaseMixin(object):
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
         restart_cinder()
-        with self.cinder_logs_context(), self.iscsi_manager_logs_context():
+        with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
@@ -573,6 +587,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def install_iscsi_manager(cls):
         execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
+        execute_assert_success(["yum", "makecache"])
         execute_assert_success(["yum", "install", "-y", "iscsi-manager"])
         execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"])
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7

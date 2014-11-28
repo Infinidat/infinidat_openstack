@@ -145,7 +145,7 @@ def apply(config_parser, address, pool_name, username, password, thick_provision
     config_parser.set(key, "volume_driver", VOLUME_DRIVER)
     for setting in SETTINGS:
         config_parser.set(key, setting[1], locals()[setting[0]])
-    config_parser.set('san_password', mask(password))
+    config_parser.set(key, 'san_password', mask(password))
     config_parser.set(key, "infinidat_provision_type", "thick" if thick_provisioning else "thin")
     config_parser.set(key, "infinidat_prefer_fc", prefer_fc)
     config_parser.set(key, "infinidat_allow_pool_not_found", infinidat_allow_pool_not_found)

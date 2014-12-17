@@ -147,6 +147,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @_infinipy_to_cinder_exceptions
     def do_setup(self, context):
         from infinipy.system.exceptions import NoObjectFound
+        from infinidat_openstack.config import is_masked, unmask
         for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
                 raise exception.InvalidInput(reason=translate("{0} must be set".format(key)))
@@ -158,7 +159,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         from infinipy import System
         self.system = System(self.configuration.san_ip,
                              username=self.configuration.san_login,
-                             password=self.configuration.san_password)
+                             password=unmask(self.configuration.san_password) if \
+                                      is_masked(self.configuration.san_password) else self.configuration.san_password)
 
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.

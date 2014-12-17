@@ -3,7 +3,7 @@ from infinidat_openstack.__version__ import __version__
 from infinidat_openstack.exceptions import UserException
 
 FIRST_SUPPORTED_VERSION = parse_version('1.5')
-FIRST_UNSUPPORTED_VERSION = parse_version('1.6')
+FIRST_UNSUPPORTED_VERSION = parse_version('2.1')
 
 
 class UnsupportedVersion(UserException):

@@ -1,5 +1,30 @@
 import contextlib
+import hashlib
+import random
+from base64 import b64encode, b64decode
 from . import exceptions
+MAGIC_VER = 'ENC:1'
+
+
+def mask(s, k=hashlib.sha512('InF').digest()):
+    s += '\x00' * ((16 - len(s) % 16) % 16)
+    s1 = random.randint(1, 255)
+    return MAGIC_VER + b64encode(chr(s1) + ''.join([chr(ord(c) ^ (ord(k[i % len(k)]) ^ s1)) for i, c in enumerate(s)]))
+
+
+def unmask(s, k=hashlib.sha512('InF').digest()):
+    if not s.startswith(MAGIC_VER):
+        return s
+    try:
+        s = b64decode(s[len(MAGIC_VER):])
+    except TypeError:
+        return ''
+    s1 = ord(s[0])
+    return ''.join([chr(ord(c) ^ (ord(k[i % len(k)]) ^ s1)) for i, c in enumerate(s[1:])]).rstrip('\x00')
+
+
+def is_masked(s):
+    return s.startswith(MAGIC_VER) and (len(s) - len(MAGIC_VER)) % 4 == 0
 
 
 @contextlib.contextmanager
@@ -58,8 +83,12 @@ def get_systems(config_parser):
         if isinstance(value, basestring) and value.isdigit():
             return int(value)
         return value
-    return [dict([(setting[0], _get(value, setting[1])) for setting in SETTINGS], key=key)
-            for key, value in get_infinibox_sections(config_parser).items()]
+    systems = [dict([(setting[0], _get(value, setting[1])) for setting in SETTINGS], key=key)
+               for key, value in get_infinibox_sections(config_parser).items()]
+    for system in systems:
+        if 'password' in system and is_masked(system['password']):
+            system['password'] = unmask(system['password'])
+    return systems
 
 
 def get_system(config_parser, address, pool_id):
@@ -116,6 +145,7 @@ def apply(config_parser, address, pool_name, username, password, thick_provision
     config_parser.set(key, "volume_driver", VOLUME_DRIVER)
     for setting in SETTINGS:
         config_parser.set(key, setting[1], locals()[setting[0]])
+    config_parser.set(key, 'san_password', mask(password))
     config_parser.set(key, "infinidat_provision_type", "thick" if thick_provisioning else "thin")
     config_parser.set(key, "infinidat_prefer_fc", prefer_fc)
     config_parser.set(key, "infinidat_allow_pool_not_found", infinidat_allow_pool_not_found)

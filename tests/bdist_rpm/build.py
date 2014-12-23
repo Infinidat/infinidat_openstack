@@ -30,7 +30,7 @@ def get_name():
 def shorten_version(long_version):
     from pkg_resources import parse_version
     version_numbers = []
-    parsed_version = list(parse_version(long_version))
+    parsed_version = parse_version(long_version).public.split('.')
     for item in parsed_version:
         if not item.isdigit():
             break

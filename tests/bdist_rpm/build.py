@@ -28,22 +28,8 @@ def get_name():
 
 
 def shorten_version(long_version):
-    from pkg_resources import parse_version
-    from re import split
-    version_numbers = []
-    parsed_version = split("[.\-\+]", parse_version(long_version).public)
-    for item in parsed_version:
-        if not item.isdigit():
-            break
-        version_numbers.append(int(item))
-    while len(version_numbers) < 3:
-        version_numbers.append(0)
-    index = parsed_version.index(item)
-    for item in parsed_version[index:]:
-        if item.isdigit():
-            version_numbers.append(int(item))
-            break
-    return '.'.join([str(item) for item in  version_numbers])
+    from infi.os_info import shorten_version_string
+    return shorten_version_string(long_version)
 
 
 def change_version_in_setup_py():

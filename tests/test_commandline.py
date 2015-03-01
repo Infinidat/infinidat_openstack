@@ -202,7 +202,6 @@ class RealTestCase(CommandlineTestsMixin, RealInfiniBoxMixin, TestCase):
     def setUpClass(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
-        prepare_host()
         ensure_package_is_installed()
         cls.setup_infinibox()
 

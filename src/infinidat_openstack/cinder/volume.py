@@ -222,22 +222,19 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         except ObjectNotFound:
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
             return
-        metadata = infinidat_volume.get_metadata()
-        object_to_delete = infinidat_volume.get_parent() if \
-                           metadata.get("delete_parent", "false").lower() == "true" else \
-                           infinidat_volume
-
-        if self.configuration.infinidat_purge_volume_on_deletion:
-            self._purge_infinibox_volume(infinidat_volume)
+        metadata = infinidat_volume.get_all_metadata()
+        delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
+        if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
+            getattr(infinidat_volume.get_parent(), delete_method_name)()
         else:
-            object_to_delete.delete()
+            getattr(infinidat_volume, delete_method_name)()
 
     def _wait_for_iscsi_host(self, initiator):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
             for host in self.system.get_hosts():
-                if initiator == host.get_metadata().get('iscsi_manager_iqn'):
+                if initiator == host.get_all_metadata().get('iscsi_manager_iqn'):
                     return host
 
             sleep(self.configuration.infinidat_iscsi_gw_time_between_retries_sec)
@@ -257,7 +254,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
-            target_iscsi_gateway = self._find_target_by_metadata_change(old_metadata, host.get_metadata())
+            target_iscsi_gateway = self._find_target_by_metadata_change(old_metadata, host.get_all_metadata())
             if target_iscsi_gateway:
                 return target_iscsi_gateway
 
@@ -285,7 +282,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             self._set_host_metadata(host)
             lun = host.map_volume(infinidat_volume)
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
-            target_wwn = [str(wwn) for wwn in self.system.get_fiber_target_addresses()]
+            target_wwn = [str(wwn) for wwn in self.system.components.fc_ports.get_online_target_addresses()]
 
         # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
         return dict(driver_volume_type='fibre_channel',
@@ -297,7 +294,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self._set_host_metadata(host)
 
         # we would like to compare before/after the map to make sure at least one target is aware of the map
-        metadata_before_map = host.get_metadata()
+        metadata_before_map = host.get_all_metadata()
 
         lun = host.map_volume(infinidat_volume)
         LOG.info("Volume(name={0!r}, id={1}) mapped to Host (name={2!r}, id={3}) successfully".format(
@@ -306,7 +303,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # We wait for the volume to be exposed via the gateway
         target_host = self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_map)
 
-        iscsi_target_metadata = target_host.get_metadata()
+        iscsi_target_metadata = target_host.get_all_metadata()
         target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
         target_portal = iscsi_target_metadata.get('iscsi_manager_portal')
         access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
@@ -349,7 +346,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             except ObjectNotFound:
                 continue
             self._set_host_metadata(host)
-            host.unmap_volume(infinidat_volume, force=force)
+            host.unmap_volume(infinidat_volume)
             self._delete_host_if_unused(host)
 
     def _terminate_connection__iscsi(self, cinder_volume, connector, force=False):
@@ -359,8 +356,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         except ISCSIGWTimeoutException:
             return
         self._set_host_metadata(host)
-        metadata_before_unmap = host.get_metadata()
-        host.unmap_volume(infinidat_volume, force=force)
+        metadata_before_unmap = host.get_all_metadata()
+        host.unmap_volume(infinidat_volume)
         LOG.info("Volume(name={0!r}, id={1}) unmapped from Host (name={2!r}, id={3}) successfully".format(
                     infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 
@@ -398,7 +395,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         if infinidat_volume.get_size() != new_size_in_bytes:
             if infinidat_volume.get_size() > new_size_in_bytes:
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
-            infinidat_volume.set_size(new_size_in_bytes)
+            infinidat_volume.update_size(new_size_in_bytes)
 
     @_infinisdk_to_cinder_exceptions
     def migrate_volume(self, context, volume, host):
@@ -509,7 +506,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _set_obj_metadata(self, obj, metadata):
         metadata["system"] = str(SYSTEM_METADATA_VALUE)
         metadata["driver_version"] = str(self.VERSION)
-        obj.set_metadata(**metadata)
+        obj.set_metadata_from_dict(metadata)
 
     def _assert_connector(self, connector):
         if ((not u'wwpns' in connector or not connector[u'wwpns']) and

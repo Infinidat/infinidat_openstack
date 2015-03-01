@@ -18,7 +18,7 @@ class ProvisioningTestsMixin(object):
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()
-                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata("cinder_id"))
+                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata_value("cinder_id"))
 
     @parameters.iterate("volume_count", [2, 5])
     def test_create_multiple_volumes_in_one_pool(self, volume_count):
@@ -27,7 +27,7 @@ class ProvisioningTestsMixin(object):
                 cinder_volumes = [self.create_volume(1, pool=pool) for volume in range(volume_count)]
                 infinibox_volumes, _ = get_diff()
                 self.assertEquals([item.id for item in cinder_volumes],
-                                  [item.get_metadata("cinder_id") for item in infinibox_volumes])
+                                  [item.get_metadata_value("cinder_id") for item in infinibox_volumes])
                 [self.delete_cinder_object(item) for item in cinder_volumes]
 
     def test_create_volumes_from_different_pools(self):
@@ -40,39 +40,39 @@ class ProvisioningTestsMixin(object):
     def assert_cinder_mapping(self, cinder_volume, infinibox_volume):
         predicate_args = self.infinisdk.get_serial(), infinibox_volume.get_id()
         with self.cinder_mapping_context(cinder_volume):
-            for mapping in infinibox_volume.get_luns():
-                [host] = self.infinisdk.hosts.find(id=mapping['host_id'])
+            for mapping in infinibox_volume.get_logical_units().luns.values():
+                host = mapping.get_host()
                 self.assert_host_metadata(host)
 
     def assert_basic_metadata(self, infinibox_object):
         from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver
-        metdata = infinibox_object.get_metadata()
+        metdata = infinibox_object.get_all_metadata()
         for key, value in dict(system="openstack", driver_version=InfiniboxVolumeDriver.VERSION).items():
             self.assertEquals(metdata[key], str(value))
 
     def assert_host_metadata(self, infinibox_host):
         from infinidat_openstack.cinder.volume import get_os_hostname, get_os_platform, get_powertools_version
         self.assert_basic_metadata(infinibox_host)
-        metdata = infinibox_host.get_metadata()
+        metdata = infinibox_host.get_all_metadata()
         for key, value in dict(hostname=get_os_hostname(), platform=get_os_platform(),
                                powertools_version=get_powertools_version()).items():
             self.assertEquals(metdata[key], str(value))
 
     def assert_volume_metadata(self, cinder_volume, infinibox_volume):
         self.assert_basic_metadata(infinibox_volume)
-        metdata = infinibox_volume.get_metadata()
+        metdata = infinibox_volume.get_all_metadata()
         for key, value in dict(cinder_id=cinder_volume.id, cinder_display_name=cinder_volume.display_name).items():
             self.assertEquals(metdata[key], str(value))
 
     def assert_snapshot_metadata(self, cinder_volume, infinibox_volume):
         self.assert_basic_metadata(infinibox_volume)
         self.assert_volume_metadata(cinder_volume, infinibox_volume)
-        metdata = infinibox_volume.get_metadata()
+        metdata = infinibox_volume.get_all_metadata()
 
     def assert_clone_metadata(self, cinder_volume, infinibox_volume):
         self.assert_basic_metadata(infinibox_volume)
         self.assert_volume_metadata(cinder_volume, infinibox_volume)
-        metdata = infinibox_volume.get_metadata()
+        metdata = infinibox_volume.get_all_metadata()
         for key, value in dict(delete_parent=True).items():
             self.assertEquals(metdata[key], str(value))
 
@@ -104,7 +104,7 @@ class ProvisioningTestsMixin(object):
                         [infinibox_clone] = infinibox_snapshot.get_clones()
                         self.assert_cinder_mapping(cinder_clone, infinibox_clone)
                         self.assert_clone_metadata(cinder_clone, infinibox_clone)
-                        self.assertEquals(infinibox_snapshot.get_metadata()['internal'], "true")
+                        self.assertEquals(infinibox_snapshot.get_all_metadata()['internal'], "true")
 
     def test_volume_extend(self):
         with self.provisioning_pool_context() as pool:
@@ -131,6 +131,7 @@ class ProvisioningTestsMixin(object):
         from capacity import GiB
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
+            infinibox_volume.refresh()
             self.assertEquals(infinibox_volume.get_size(), size_in_gb * GiB)
         poll()
 
@@ -142,8 +143,8 @@ class ProvisioningTestsMixin(object):
                 # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size
                 # and assert that the image copy changed the allocation size
                 for infinibox_volume in infinibox_volumes:
-                    self.assertGreater(infinibox_volume.get_allocated_size(), 0)
-                    self.assertLess(infinibox_volume.get_allocated_size(), infinibox_volume.get_size())
+                    self.assertGreater(infinibox_volume.get_allocated(), 0)
+                    self.assertLess(infinibox_volume.get_allocated(), infinibox_volume.get_size())
 
     def _set_cinder_config_values(self, **kwargs):
         from infinidat_openstack.config import get_config_parser

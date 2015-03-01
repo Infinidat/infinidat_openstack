@@ -149,6 +149,8 @@ class OpenStackTestCase(TestCase):
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick'):
+        from infinisdk_internal import enable
+        enable()
         pool = self.infinisdk.pools.create()
         with self.cinder_context(self.infinisdk, pool, provisioning):
             yield pool
@@ -404,7 +406,7 @@ class MockTestCaseMixin(object):
     @contextmanager
     def cinder_context(cls, infinisdk, pool, provisioning='thick'):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
-        volume_driver_config.update(san_ip=infinisdk.get_hostname(),
+        volume_driver_config.update(san_ip=infinisdk.get_api_addresses()[0][0],
                                     infinidat_pool_id=pool.get_id(),
                                     san_login="admin", san_password="123456",
                                     infinidat_provision_type=provisioning)
@@ -429,7 +431,7 @@ class MockTestCaseMixin(object):
         def consume_space(cinder_volume):
             from capacity import GB
             [volume] = [item for item in cls.infinisdk.volumes.get_all()
-                        if item.get_metadata('cinder_id') == cinder_volume.id]
+                        if item.get_metadata_value('cinder_id') == cinder_volume.id]
             for simulator in cls.smock.get_inventory()._simulators:
                 if simulator.get_serial() != volume.get_system().get_serial():
                     continue

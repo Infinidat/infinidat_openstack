@@ -204,6 +204,16 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                                                       provisioning=self._get_provisioning())
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
+    def _purge_infinidat_volume(self, infinidat_volume):
+        if infinidat_volume.is_mapped():
+            infinidat_volume.unmap()
+
+        for child in list(infinidat_volume.get_children()):
+            self._purge_infinidat_volume(child)
+
+        infinidat_volume.delete()
+
+
     @_infinisdk_to_cinder_exceptions
     def delete_volume(self, cinder_volume):
         from infinisdk.core.exceptions import ObjectNotFound
@@ -213,11 +223,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
             return
         metadata = infinidat_volume.get_metadata()
-        delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
-        if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
-            getattr(infinidat_volume.get_parent(), delete_method_name)()
+        object_to_delete = infinidat_volume.get_parent() if \
+                           metadata.get("delete_parent", "false").lower() == "true" else \
+                           infinidat_volume
+
+        if self.configuration.infinidat_purge_volume_on_deletion:
+            self._purge_infinibox_volume(infinidat_volume)
         else:
-            getattr(infinidat_volume, delete_method_name)()
+            object_to_delete.delete()
 
     def _wait_for_iscsi_host(self, initiator):
         start = time()

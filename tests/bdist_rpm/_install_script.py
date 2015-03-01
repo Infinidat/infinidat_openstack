@@ -8,7 +8,8 @@ CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
 EXCLUDED_PACKAGES = ("distribute", "setuptools", "pip",
                      "six", "requests", "bson", "pymongo", "ipython", "oslo.config",
-                     "python-cinderclient", "Babel", "pbr", "simplejson", "prettytable")
+                     "python-cinderclient", "Babel", "pbr", "simplejson", "prettytable",
+                     "python-dateutil")
 
 
 def get_name():

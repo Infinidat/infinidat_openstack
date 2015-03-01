@@ -48,21 +48,21 @@ def add_import_setuptools_to_setup_py():
 
 
 def build_dependency(dependency):
-    for fname in glob.glob(".cache/dist/{}*egg".format(dependency)):
-        remove_glob(".cache/dist/{}*tar.gz".format(dependency))
+    for fname in glob.glob(".cache/dist/{}-*egg".format(dependency)):
+        remove_glob(".cache/dist/{}-*tar.gz".format(dependency))
         tgz = os.path.basename(fname)[:-10] + ".tar.gz"  # -py2.7.egg
         url = "http://pypi01/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)
-    for fname in glob.glob(".cache/dist/{}*zip".format(dependency)):
-        remove_glob(".cache/dist/{}*zip".format(dependency))
+    for fname in glob.glob(".cache/dist/{}-*zip".format(dependency)):
+        remove_glob(".cache/dist/{}-*zip".format(dependency))
         tgz = os.path.basename(fname)[:-4] + ".tar.gz"
         url = "http://pypi01/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)
     # handle packages like json_rest, infinibox_sysdefs and python-cinderclient
-    files = set.union(set(glob.glob(".cache/dist/{}*tar.gz".format(dependency.replace('-', '_')))),
-                      set(glob.glob(".cache/dist/{}*tar.gz".format(dependency.replace('_', '-')))))
+    files = set.union(set(glob.glob(".cache/dist/{}-*tar.gz".format(dependency.replace('-', '_')))),
+                      set(glob.glob(".cache/dist/{}-*tar.gz".format(dependency.replace('_', '-')))))
     for fname in files:
         os.chdir(CURDIR)
         system("tar zxf {}".format(fname))

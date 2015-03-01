@@ -7,8 +7,8 @@ from infi.pyutils.contexts import contextmanager
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
         with self.provisioning_pool_context() as pool:
-            display_name = "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
-            volume_backend_name = "infinibox-{}-pool-{}".format(self.infinipy.get_serial(), pool.get_id())
+            display_name = "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
+            volume_backend_name = "infinibox-{}-pool-{}".format(self.infinisdk.get_serial(), pool.get_id())
             [volume_type] = [item for item in self.get_cinder_client().volume_types.findall()
                              if item.get_keys()["volume_backend_name"] == volume_backend_name]
             self.assertEquals(volume_type.name, display_name)
@@ -34,14 +34,14 @@ class ProvisioningTestsMixin(object):
         with self.provisioning_pool_context() as first:
             with self.provisioning_pool_context() as second:
                 with self.cinder_volume_context(1, pool=first), self.cinder_volume_context(1, pool=second):
-                    self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=first.get_id())))
-                    self.assertEquals(1, len(self.infinipy.objects.Volume.find(pool_id=second.get_id())))
+                    self.assertEquals(1, len(self.infinisdk.volumes.find(pool_id=first.get_id())))
+                    self.assertEquals(1, len(self.infinisdk.volumes.find(pool_id=second.get_id())))
 
     def assert_cinder_mapping(self, cinder_volume, infinibox_volume):
-        predicate_args = self.infinipy.get_serial(), infinibox_volume.get_id()
+        predicate_args = self.infinisdk.get_serial(), infinibox_volume.get_id()
         with self.cinder_mapping_context(cinder_volume):
             for mapping in infinibox_volume.get_luns():
-                [host] = self.infinipy.objects.Host.find(id=mapping['host_id'])
+                [host] = self.infinisdk.hosts.find(id=mapping['host_id'])
                 self.assert_host_metadata(host)
 
     def assert_basic_metadata(self, infinibox_object):

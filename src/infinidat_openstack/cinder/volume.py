@@ -77,13 +77,13 @@ class InfiniBoxVolumeDriverConnectionException(exception.CinderException):
 
 
 @contextmanager
-def _infinipy_to_cinder_exceptions_context():
-    from infinipy.exceptions import InfinipyException
+def _infinisdk_to_cinder_exceptions_context():
+    from infinisdk.core.exceptions import InfiniSDKException
     try:
         yield
-    except InfinipyException, e:
-        LOG.exception("Caught Infinibox API exception")
-        raise InfiniboxException(str(e))
+    except InfiniSDKException, e:
+        LOG.exception("Caught InfiniSDK")
+        raise InfiniSDKException(str(e))
 
 
 def _log_decorator(func):
@@ -96,10 +96,10 @@ def _log_decorator(func):
     return wrapper
 
 
-def _infinipy_to_cinder_exceptions(f):
+def _infinisdk_to_cinder_exceptions(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        with _infinipy_to_cinder_exceptions_context():
+        with _infinisdk_to_cinder_exceptions_context():
             return f(*args, **kwargs)
     return _log_decorator(wrapper)
 
@@ -144,9 +144,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self.pool = None
         self.volume_stats = None
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def do_setup(self, context):
-        from infinipy.system.exceptions import NoObjectFound
+        from infinisdk.core.exceptions import ObjectNotFound
         from infinidat_openstack.config import is_masked, unmask
         for key in ('infinidat_provision_type', 'infinidat_pool_id', 'san_login', 'san_password'):
             if not self.configuration.safe_get(key):
@@ -156,37 +156,37 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         if provision_type.upper() not in ('THICK', 'THIN'):
             raise exception.InvalidInput(reason=translate("infinidat_provision_type must be THICK or THIN"))
 
-        from infinipy import System
-        self.system = System(self.configuration.san_ip,
-                             username=self.configuration.san_login,
-                             password=unmask(self.configuration.san_password) if \
-                                      is_masked(self.configuration.san_password) else self.configuration.san_password)
+        from infinisdk import InfiniBox
+        self.system = InfiniBox(self.configuration.san_ip,
+                             auth=(self.configuration.san_login,
+                                   unmask(self.configuration.san_password) if \
+                                   is_masked(self.configuration.san_password) else self.configuration.san_password))
 
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
-        except NoObjectFound:
+        except ObjectNotFound:
             if not self.configuration.infinidat_allow_pool_not_found:
                 raise
             LOG.info("InfiniBox pool not found, but infinidat_allow_pool_not_found is set")
 
     # Since we no longer inherit from SanDriver, we have to implement the four following methods:
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def ensure_export(self, context, volume):
         """Synchronously recreates an export for a logical volume."""
         pass
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def create_export(self, context, volume):
         """Exports the volume."""
         pass
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def remove_export(self, context, volume):
         """Removes an export for a logical volume."""
         pass
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def check_for_setup_error(self):
         """Returns an error if prerequisites aren't met."""
         if not self.configuration.san_password:
@@ -196,20 +196,20 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         if not self.configuration.san_ip:
             raise exception.InvalidInput(reason=_("san_ip must be set"))
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def create_volume(self, cinder_volume):
-        infinidat_volume = self.system.objects.Volume.create(name=self._create_volume_name(cinder_volume),
-                                                             size=cinder_volume.size * GiB,
-                                                             pool=self._get_pool(),
-                                                             provisioning=self._get_provisioning())
+        infinidat_volume = self.system.volumes.create(name=self._create_volume_name(cinder_volume),
+                                                      size=cinder_volume.size * GiB,
+                                                      pool=self._get_pool(),
+                                                      provisioning=self._get_provisioning())
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def delete_volume(self, cinder_volume):
-        from infinipy.system.exceptions import NoObjectFound
+        from infinisdk.core.exceptions import ObjectNotFound
         try:
             infinidat_volume = self._find_volume(cinder_volume)
-        except NoObjectFound:
+        except ObjectNotFound:
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
             return
         metadata = infinidat_volume.get_metadata()
@@ -237,7 +237,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 continue
             if int(old_metadata.get(key, 0)) < int(new_metadata[key]):
                 host_id = key.lstrip('iscsi_host_').rstrip('_change_counter')
-                return self.system.objects.Host.get(id=int(host_id))
+                return self.system.hosts.get(id=int(host_id))
         return None
 
     def _wait_for_any_target_to_update_lun_mappings_on_host(self, host, old_metadata):
@@ -254,7 +254,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         message = message.format(host.get_name(), host.get_id(), old_metadata)
         raise ISCSIGWVolumeNotExposedException(message)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
         # connector is a dict containing information about the connection. For example:
         # connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
@@ -320,7 +320,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         else:
             return protocol_methods['iscsi'](cinder_volume, connector, *args, **kwargs)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def terminate_connection(self, cinder_volume, connector, force=False):
         self._assert_connector(connector)
         methods = dict(fc=self._terminate_connection__fc,
@@ -328,12 +328,12 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         return self._handle_connection(methods, cinder_volume, connector, force=force)
 
     def _terminate_connection__fc(self, cinder_volume, connector, force=False):
-        from infinipy.system.exceptions import NoObjectFound
+        from infinisdk.core.exceptions import ObjectNotFound
         infinidat_volume = self._find_volume(cinder_volume)
         for wwpn in connector[u'wwpns']:
             try:
                 host = self._find_host_by_wwpn(wwpn)
-            except NoObjectFound:
+            except ObjectNotFound:
                 continue
             self._set_host_metadata(host)
             host.unmap_volume(infinidat_volume, force=force)
@@ -354,7 +354,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # We wait for the volume to be unexposed via the gateway
         self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_unmap)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         if cinder_volume.size * GiB != infinidat_snapshot.get_size():
@@ -362,7 +362,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
         if tgt_cinder_volume.size != src_cinder_volume.size:
             raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
@@ -377,7 +377,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         self._set_volume_or_snapshot_metadata(tgt_infinidat_volume, tgt_cinder_volume, delete_parent=True)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def extend_volume(self, cinder_volume, new_size):
         LOG.info("InfiniboxVolumeDriver.extend_volume")
         infinidat_volume = self._find_volume(cinder_volume)
@@ -387,29 +387,29 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.set_size(new_size_in_bytes)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def migrate_volume(self, context, volume, host):
         return False, None  # not supported: we can't migrate a volume between pools or between Infinibox machines
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def create_snapshot(self, cinder_snapshot):
         infinidat_volume = self._find_volume(cinder_snapshot.volume)
         infinidat_snapshot = infinidat_volume.create_snapshot(name=translate(self._create_snapshot_name(cinder_snapshot)))
         self._set_volume_or_snapshot_metadata(infinidat_snapshot, cinder_snapshot)
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def delete_snapshot(self, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         infinidat_snapshot.delete()
 
-    @_infinipy_to_cinder_exceptions
+    @_infinisdk_to_cinder_exceptions
     def get_volume_stats(self, refresh=False):
         if refresh or not self.volume_stats:
             self._update_volume_stats()
         return self.volume_stats
 
     def _update_volume_stats(self):
-        from infinipy.system.exceptions import NoObjectFound
+        from infinisdk.core.exceptions import ObjectNotFound
         """Retrieve stats info from volume group."""
 
         data = {}
@@ -422,7 +422,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
             data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
-        except NoObjectFound:
+        except ObjectNotFound:
             data['total_capaceity_gb'] = 0
             data['free_capacity_gb'] = 0
 
@@ -432,35 +432,35 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _get_pool(self):
         if not self.pool:
-            pools = self.system.objects.Pool.find(id=int(self.configuration.infinidat_pool_id))
+            pools = self.system.pools.find(id=int(self.configuration.infinidat_pool_id))
             if not pools:
                 raise exception.InvalidInput(translate("pool {0} not found".format(int(self.configuration.infinidat_pool_id))))
             self.pool = pools[0]
         return self.pool
 
     def _find_volume(self, cinder_volume):
-        return self.system.objects.Volume.get(name=self._create_volume_name(cinder_volume))
+        return self.system.volumes.get(name=self._create_volume_name(cinder_volume))
 
     def _find_snapshot(self, cinder_snapshot):
-        return self.system.objects.Volume.get(name=self._create_snapshot_name(cinder_snapshot))
+        return self.system.volumes.get(name=self._create_snapshot_name(cinder_snapshot))
 
     def _find_host_by_wwpn(self, wwpn):
-        return self.system.objects.Host.get(name=self._create_host_name_by_wwpn(wwpn))
+        return self.system.hosts.get(name=self._create_host_name_by_wwpn(wwpn))
 
     def _find_or_create_host_by_wwpn(self, wwpn):
         name = self._create_host_name_by_wwpn(wwpn)
-        host = self.system.objects.Host.safe_get(name=name)
+        host = self.system.hosts.safe_get(name=name)
         if not host:
-            host = self.system.objects.Host.create(name=name)
+            host = self.system.hosts.create(name=name)
             host.add_fc_port(wwpn)
         return host
 
     def _delete_host_if_unused(self, host):
-        from infinipy.system.exceptions import APICommandFailed
+        from infinisdk.core.exceptions import APICommandFailed
         try:
             host.delete()
         except APICommandFailed, e:
-            if 'HOST_NOT_EMPTY' in e.ctx.raw_output:  # no need to really parse the JSON
+            if 'HOST_NOT_EMPTY' in e.response.response.content:
                 pass  # host still contains mappings
             else:
                 raise  # some other bad thing happened

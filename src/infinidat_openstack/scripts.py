@@ -32,7 +32,7 @@ import os
 import warnings
 warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
 with warnings.catch_warnings():
-    import infinipy # infinipy import requests, and requests.packagers.urllib3 calls warning.simplefilter
+    import infinisdk # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update")
@@ -56,10 +56,10 @@ def system_list(config_parser):
         status = "connection successul"
         system_serial = system_name = pool_name = 'n/a'
         try:
-            infinipy = get_infinipy_for_system(system)
-            system_serial = infinipy.get_serial()
-            system_name = infinipy.get_name()
-            pool = infinipy.objects.Pool.get(id=system['pool_id'])
+            infinisdk = get_infinisdk_for_system(system)
+            system_serial = infinisdk.get_serial()
+            system_name = infinisdk.get_name()
+            pool = infinisdk.pools.get(id=system['pool_id'])
             pool_name = pool.get_name()
         except Exception, error:
             status = error.message
@@ -97,16 +97,16 @@ def assert_rc_file_exists(config_file):
         raise SystemExit(1)
 
 
-def get_infinipy_for_system(system):
-    return get_infinipy_from_arguments({'<management-address>':system['address'], '<username>':system['username'],
+def get_infinisdk_for_system(system):
+    return get_infinisdk_from_arguments({'<management-address>':system['address'], '<username>':system['username'],
                                         '<password>':system['password']})
 
 
-def get_infinipy_from_arguments(arguments):
-    from infinipy import System
+def get_infinisdk_from_arguments(arguments):
+    from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     address, username, password = arguments.get('<management-address>'), arguments.get('<username>'), arguments.get('<password>')
-    system = System(address, username=username, password=password)
+    system = InfiniBox(address, auth=(username, password))
     raise_if_unsupported(get_system_version(address, username, password, system))
     return system
 
@@ -136,7 +136,7 @@ def handle_commands(arguments, config_file):
         elif arguments['set']:
             key = config.apply(config_parser, address, pool_name, username, password, arguments.get("--thick-provisioning"))
             if write_on_exit:
-                config.update_volume_type(cinder_client, key, get_infinipy_from_arguments(arguments).get_name(), pool_name)
+                config.update_volume_type(cinder_client, key, get_infinisdk_from_arguments(arguments).get_name(), pool_name)
             _print(DONE_MESSAGE, sys.stderr)
         elif arguments['remove']:
             if system is None:
@@ -152,24 +152,24 @@ def handle_commands(arguments, config_file):
                 _print("failed to enable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                 sys.exit(1)
             config.enable(config_parser, system['key'])
-            infinipy = get_infinipy_for_system(system)
-            pool = infinipy.objects.Pool.get(id=pool_id)
+            infinisdk = get_infinisdk_for_system(system)
+            pool = infinisdk.objects.pools.get(id=pool_id)
             if write_on_exit:
-                config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
+                config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
             _print(DONE_MESSAGE, sys.stderr)
         elif arguments['update']:
             if arguments["all"]:
                 for _system in config.get_systems(config_parser):
-                    infinipy = get_infinipy_for_system(_system)
-                    pool = infinipy.objects.Pool.get(id=_system['pool_id'])
-                    config.update_volume_type(cinder_client, _system['key'], infinipy.get_name(), pool.get_name())
+                    infinisdk = get_infinisdk_for_system(_system)
+                    pool = infinisdk.pools.get(id=_system['pool_id'])
+                    config.update_volume_type(cinder_client, _system['key'], infinisdk.get_name(), pool.get_name())
             else:
                 if system is None:
                     _print("failed to update '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
                     sys.exit(1)
-                infinipy = get_infinipy_for_system(system)
-                pool = infinipy.objects.Pool.get(id=system['pool_id'])
-                config.update_volume_type(cinder_client, system['key'], infinipy.get_name(), pool.get_name())
+                infinisdk = get_infinisdk_for_system(system)
+                pool = infinisdk.pools.get(id=system['pool_id'])
+                config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
             _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
         elif arguments['disable']:
             if system is None:
@@ -189,7 +189,7 @@ def main(argv=sys.argv[1:]):
     from .__version__ import __version__
     from .exceptions import UserException
     from traceback import print_exception
-    from infinipy.system.exceptions import SystemException
+    from infinisdk.core.exceptions import APICommandFailed
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments['--config-file']
     rc_file = arguments['--rc-file']
@@ -203,7 +203,7 @@ def main(argv=sys.argv[1:]):
         return handle_commands(arguments, config_file)
     except SystemExit:
         raise
-    except SystemException, error:
+    except APICommandFailed, error:
         _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
         raise SystemExit(1)
     except UserException, error:

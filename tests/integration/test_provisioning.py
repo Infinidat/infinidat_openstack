@@ -40,7 +40,7 @@ class ProvisioningTestsMixin(object):
     def assert_cinder_mapping(self, cinder_volume, infinibox_volume):
         predicate_args = self.infinisdk.get_serial(), infinibox_volume.get_id()
         with self.cinder_mapping_context(cinder_volume):
-            for mapping in infinibox_volume.get_logical_units().luns.values():
+            for mapping in infinibox_volume.get_logical_units().luns:
                 host = mapping.get_host()
                 self.assert_host_metadata(host)
 

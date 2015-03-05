@@ -189,7 +189,7 @@ class MockInfiniBoxMixin(object):
         cls.simulator = Simulator()
         cls.simulator.set_serial(12345)
         cls.simulator.activate()
-        cls.infinisdk = InfiniBox(cls.simulator, use_ssl=True, auth=('admin', '123456'))
+        cls.infinisdk = InfiniBox(cls.simulator, auth=('admin', '123456'))
 
     @classmethod
     def teardown_infinibox(cls):
@@ -260,7 +260,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     @contextmanager
     def mock_clients_context(self):
         from infinisdk import InfiniBox
-        infinisdk_side_effect = lambda address, auth=("admin", "123456"): InfiniBox(self.simulator, use_ssl=True, auth=auth)
+        infinisdk_side_effect = lambda address, use_ssl, auth=("admin", "123456"): InfiniBox(self.simulator, auth=auth)
         with patch("infinisdk.InfiniBox", side_effect=infinisdk_side_effect) as infinisdk:
             with patch("cinderclient.v1.client.Client"):
                 yield

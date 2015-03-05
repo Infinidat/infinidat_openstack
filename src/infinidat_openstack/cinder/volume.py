@@ -158,9 +158,10 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         from infinisdk import InfiniBox
         self.system = InfiniBox(self.configuration.san_ip,
-                             auth=(self.configuration.san_login,
-                                   unmask(self.configuration.san_password) if \
-                                   is_masked(self.configuration.san_password) else self.configuration.san_password))
+                                auth=(self.configuration.san_login,
+                                      unmask(self.configuration.san_password) if \
+                                      is_masked(self.configuration.san_password) else \
+                                      self.configuration.san_password))
 
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.

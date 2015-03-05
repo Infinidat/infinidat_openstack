@@ -224,11 +224,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             LOG.info("delete_volume: volume {0!r} not found in InfiniBox, returning None".format(cinder_volume))
             return
         metadata = infinidat_volume.get_all_metadata()
-        delete_method_name = "purge" if self.configuration.infinidat_purge_volume_on_deletion else "delete"
-        if metadata.get("delete_parent", "false").lower() == "true":  # support cloned volumes
-            getattr(infinidat_volume.get_parent(), delete_method_name)()
+
+        delete_parent = metadata.get("delete_parent", "false").lower() == "true"
+        object_to_delete = infinidat_volume.get_parent() if delete_parent else infinidat_volume
+        if self.configuration.infinidat_purge_volume_on_deletion:
+            self._purge_infinidat_volume(object_to_delete)
         else:
-            getattr(infinidat_volume, delete_method_name)()
+            object_to_delete.delete()
 
     def _wait_for_iscsi_host(self, initiator):
         start = time()

@@ -253,7 +253,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         start = time()
         while time() - start < self.configuration.infinidat_iscsi_gw_timeout_sec:
 
-            for host in self.system.get_hosts():
+            for host in self.system.hosts.get_all():
                 if initiator == host.get_all_metadata().get('iscsi_manager_iqn'):
                     return host
 

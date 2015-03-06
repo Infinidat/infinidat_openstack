@@ -111,6 +111,7 @@ def logbook_compat(f):
     def wrapper(*args, **kwargs):
         with LOGBOOK_HANDLER:
             return f(*args, **kwargs)
+    return wrapper
 
 
 def get_os_hostname():

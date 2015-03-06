@@ -614,7 +614,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
         execute_assert_success(["iscsi-manager", "config", "init"])
-        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.address_info.hostname, "infinidat", "123456"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.get_api_addresses()[0][0], "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         with logs_context(ISCSIMANAGER_LOGDIR):

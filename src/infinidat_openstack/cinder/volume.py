@@ -14,8 +14,10 @@ from functools import wraps
 from capacity import GiB
 from time import sleep, time
 from infi.pyutils.decorators import wraps
+from logbook.compat import LoggingHandler
 
 LOG = logging.getLogger(__name__)
+LOGBOOK_HANDLER = LoggingHandler()
 
 volume_opts = [
     cfg.StrOpt('infinidat_pool_id', help='id the pool from which volumes are allocated', default=None),
@@ -96,12 +98,19 @@ def _log_decorator(func):
     return wrapper
 
 
-def _infinisdk_to_cinder_exceptions(f):
+def infinisdk_to_cinder_exceptions(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         with _infinisdk_to_cinder_exceptions_context():
             return f(*args, **kwargs)
     return _log_decorator(wrapper)
+
+
+def logbook_compat(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        with LOGBOOK_HANDLER:
+            return f(*args, **kwargs)
 
 
 def get_os_hostname():
@@ -144,7 +153,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         self.pool = None
         self.volume_stats = None
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def do_setup(self, context):
         from infinisdk.core.exceptions import ObjectNotFound
         from infinidat_openstack.config import is_masked, unmask
@@ -172,22 +182,26 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     # Since we no longer inherit from SanDriver, we have to implement the four following methods:
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def ensure_export(self, context, volume):
         """Synchronously recreates an export for a logical volume."""
         pass
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def create_export(self, context, volume):
         """Exports the volume."""
         pass
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def remove_export(self, context, volume):
         """Removes an export for a logical volume."""
         pass
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def check_for_setup_error(self):
         """Returns an error if prerequisites aren't met."""
         if not self.configuration.san_password:
@@ -197,7 +211,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         if not self.configuration.san_ip:
             raise exception.InvalidInput(reason=_("san_ip must be set"))
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def create_volume(self, cinder_volume):
         infinidat_volume = self.system.volumes.create(name=self._create_volume_name(cinder_volume),
                                                       size=cinder_volume.size * GiB,
@@ -215,7 +230,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         infinidat_volume.delete()
 
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def delete_volume(self, cinder_volume):
         from infinisdk.core.exceptions import ObjectNotFound
         try:
@@ -267,7 +283,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         message = message.format(host.get_name(), host.get_id(), old_metadata)
         raise ISCSIGWVolumeNotExposedException(message)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def initialize_connection(self, cinder_volume, connector):
         # connector is a dict containing information about the connection. For example:
         # connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
@@ -333,7 +350,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         else:
             return protocol_methods['iscsi'](cinder_volume, connector, *args, **kwargs)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def terminate_connection(self, cinder_volume, connector, force=False):
         self._assert_connector(connector)
         methods = dict(fc=self._terminate_connection__fc,
@@ -367,7 +385,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # We wait for the volume to be unexposed via the gateway
         self._wait_for_any_target_to_update_lun_mappings_on_host(host, metadata_before_unmap)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         if cinder_volume.size * GiB != infinidat_snapshot.get_size():
@@ -375,7 +394,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
         self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
         if tgt_cinder_volume.size != src_cinder_volume.size:
             raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
@@ -390,7 +410,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         self._set_volume_or_snapshot_metadata(tgt_infinidat_volume, tgt_cinder_volume, delete_parent=True)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def extend_volume(self, cinder_volume, new_size):
         LOG.info("InfiniboxVolumeDriver.extend_volume")
         infinidat_volume = self._find_volume(cinder_volume)
@@ -400,22 +421,26 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                 raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
             infinidat_volume.update_size(new_size_in_bytes)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def migrate_volume(self, context, volume, host):
         return False, None  # not supported: we can't migrate a volume between pools or between Infinibox machines
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def create_snapshot(self, cinder_snapshot):
         infinidat_volume = self._find_volume(cinder_snapshot.volume)
         infinidat_snapshot = infinidat_volume.create_snapshot(name=translate(self._create_snapshot_name(cinder_snapshot)))
         self._set_volume_or_snapshot_metadata(infinidat_snapshot, cinder_snapshot)
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def delete_snapshot(self, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
         infinidat_snapshot.delete()
 
-    @_infinisdk_to_cinder_exceptions
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
     def get_volume_stats(self, refresh=False):
         if refresh or not self.volume_stats:
             self._update_volume_stats()

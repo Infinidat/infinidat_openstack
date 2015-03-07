@@ -186,6 +186,7 @@ def _print(text, stream=sys.stdout):
 
 
 def main(argv=sys.argv[1:]):
+    from logbook.compat import LoggingHandler
     from .__version__ import __version__
     from .exceptions import UserException
     from traceback import print_exception
@@ -199,6 +200,7 @@ def main(argv=sys.argv[1:]):
         return
     assert_config_file_exists(config_file)
     assert_rc_file_exists(rc_file)
+    LoggingHandler().push_application()
     try:
         return handle_commands(arguments, config_file)
     except SystemExit:

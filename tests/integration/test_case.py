@@ -580,8 +580,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             execute_assert_success(["yum", "install", "-y", package])
         except ExecutionError, error:
             logger.debug("yum install package {} failed, below is stdout and stderr".format(package))
-            logger.debug(error.get_stdout())
-            logger.debug(error.get_stderr())
+            logger.debug(error.result.get_stdout())
+            logger.debug(error.result.get_stderr())
             if "No package" in error.result.get_stderr() + error.result.get_stdout():
                 raise SkipTest("no scst package for kernel {}".format(kernel_version))
             raise

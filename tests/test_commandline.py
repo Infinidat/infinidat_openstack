@@ -169,8 +169,8 @@ class RealInfiniBoxMixin(object):
     def setup_infinibox(cls):
         from infi.vendata.integration_tests import system_allocation
         cls.system = system_allocation.SystemFactory.allocate_infinidat_system()
+        cls.system.purge()
         cls.infinisdk = cls.system.get_infinisdk()
-        cls.infinisdk.purge()
 
     @classmethod
     def teardown_infinibox(cls):
@@ -184,7 +184,6 @@ class MockInfiniBoxMixin(object):
     @classmethod
     def setup_infinibox(cls):
         from infinisim.infinibox import Infinibox as Simulator
-        from infinisdk_internal import InfiniBox
         from infinisdk import InfiniBox
         cls.simulator = Simulator()
         cls.simulator.set_serial(12345)

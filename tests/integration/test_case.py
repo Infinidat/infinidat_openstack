@@ -149,12 +149,13 @@ class OpenStackTestCase(TestCase):
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick'):
-        from infinisdk_internal import enable
-        enable()
+        from infi.vendata.integration_tests.purging import purge
         pool = self.infinisdk.pools.create()
-        with self.cinder_context(self.infinisdk, pool, provisioning):
-            yield pool
-        pool.purge()
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning):
+                yield pool
+        finally:
+            purge(pool)
 
     @contextmanager
     def assert_volume_count(self, diff=0):
@@ -314,11 +315,9 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_infinibox(cls):
-        from infinisdk_internal import enable
-        enable()
         cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600)
+        cls.system.purge()
         cls.infinisdk = cls.system.get_infinisdk()
-        cls.infinisdk.purge()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):

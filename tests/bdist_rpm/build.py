@@ -54,6 +54,7 @@ def main():
     --requires python-bson --requires python-pymongo \
     --requires python-cinderclient --requires python-simplejson --requires python-pbr \
     --requires python-pip --requires python-babel --requires python-prettytable \
+    --requires python-dateutil \
     --install-script=tests/bdist_rpm/_install_script.sh \
     --build-script=tests/bdist_rpm/_build_script.sh \
     --vendor Infinidat --packager Infinidat """

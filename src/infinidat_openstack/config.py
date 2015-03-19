@@ -128,11 +128,11 @@ def remove(config_parser, key):
 
 
 def apply(config_parser, address, pool_name, username, password, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
-    from infinipy import System
+    from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
-    system = System(address, username=username, password=password)
+    system = InfiniBox(address, use_ssl=True, auth=(username, password))
     raise_if_unsupported(get_system_version(address, username, password, system))
-    pool = system.objects.Pool.get(name=pool_name)
+    pool = system.pools.get(name=pool_name)
     pool_id = pool.get_id()
     key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id())
     enabled = True

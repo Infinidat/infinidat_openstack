@@ -13,8 +13,8 @@ class UnsupportedVersion(UserException):
 
 
 def get_system_version(address, username, password, system):
-    # infinipy does not support InfiniBox-1.4 response style, so we need to use json_rest
-    # but, if that fails (e.g. in case of invalid credentials), we want Infinipy exceptions
+    # infinisdk does not support InfiniBox-1.4 response style, so we need to use json_rest
+    # but, if that fails (e.g. in case of invalid credentials), we want infinisdk exceptions
     from json_rest import JSONRestSender
     j = JSONRestSender("http://{0}".format(address))
     j.set_basic_authorization(username, password)

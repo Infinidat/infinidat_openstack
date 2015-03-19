@@ -149,15 +149,18 @@ class OpenStackTestCase(TestCase):
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick'):
-        pool = self.infinipy.types.Pool.create(self.infinipy)
-        with self.cinder_context(self.infinipy, pool, provisioning):
-            yield pool
-        pool.purge()
+        from infi.vendata.integration_tests.purging import purge
+        pool = self.infinisdk.pools.create()
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning):
+                yield pool
+        finally:
+            purge(pool)
 
     @contextmanager
     def assert_volume_count(self, diff=0):
-        before = self.infinipy.get_volumes()
-        now = lambda: self.infinipy.get_volumes()
+        before = list(self.infinisdk.volumes.get_all())
+        now = lambda: list(self.infinisdk.volumes.get_all())
         func = lambda: ([volume for volume in now() if volume not in before], \
                         [volume for volume in before if volume not in now()])
         yield func
@@ -205,11 +208,11 @@ class OpenStackTestCase(TestCase):
         return cinder_volume
 
     def create_volume(self, size_in_gb, pool=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
+        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
         return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout,)
 
     def create_volume_from_image(self, size_in_gb, pool=None, image=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinipy.get_name(), pool.get_name())
+        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
         return self._create_volume(size_in_gb, volume_type=volume_type, imageRef=image.id, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
@@ -313,8 +316,8 @@ class RealTestCaseMixin(object):
     @classmethod
     def setup_infinibox(cls):
         cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600)
-        cls.infinipy = cls.system.get_infinipy()
-        cls.infinipy.purge()
+        cls.system.purge()
+        cls.infinisdk = cls.system.get_infinisdk()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
@@ -344,15 +347,15 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
-    def cinder_context(self, infinipy, pool, provisioning='thick'):
+    def cinder_context(self, infinisdk, pool, provisioning='thick'):
         with config.get_config_parser(write_on_exit=True) as config_parser:
-            key = config.apply(config_parser, self.infinipy.get_name(), pool.get_name(), "admin", "123456",
+            key = config.apply(config_parser, self.infinisdk.get_name(), pool.get_name(), "admin", "123456",
                                thick_provisioning=provisioning.lower() == 'thick',
                                prefer_fc=self.prefer_fc,
                                infinidat_allow_pool_not_found=True,
                                infinidat_purge_volume_on_deletion=True)
             config.enable(config_parser, key)
-            config.update_volume_type(self.get_cinder_client(), key, self.infinipy.get_name(), pool.get_name())
+            config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
         with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
             yield
@@ -390,19 +393,19 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def setup_infinibox(cls):
-        cls.infinipy = cls.smock.get_inventory().add_infinibox()
+        cls.infinisdk = cls.smock.get_inventory().add_infinibox()
         cls.apply_cinder_patches()
         cls.zone_localhost_with_infinibox()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
-        cls.smock.get_inventory().zone_with_system__full_mesh(cls.infinipy)
+        cls.smock.get_inventory().zone_with_system__full_mesh(cls.infinisdk)
 
     @classmethod
     @contextmanager
-    def cinder_context(cls, infinipy, pool, provisioning='thick'):
+    def cinder_context(cls, infinisdk, pool, provisioning='thick'):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
-        volume_driver_config.update(san_ip=infinipy.get_hostname(),
+        volume_driver_config.update(san_ip=infinisdk.get_api_addresses()[0][0],
                                     infinidat_pool_id=pool.get_id(),
                                     san_login="admin", san_password="123456",
                                     infinidat_provision_type=provisioning)
@@ -411,7 +414,7 @@ class MockTestCaseMixin(object):
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
         volume_drive_context = Munch()
         volume_driver.do_setup(cls.cinder_context)
-        volume_type = "[InfiniBox] {}/{}".format(infinipy.get_name(), pool.get_name())
+        volume_type = "[InfiniBox] {}/{}".format(infinisdk.get_name(), pool.get_name())
         cls.volume_driver_by_type[volume_type] = volume_driver
         yield
         cls.volume_driver_by_type.pop(volume_type)
@@ -425,10 +428,9 @@ class MockTestCaseMixin(object):
             raise NotFound(cinder_object.id)
 
         def consume_space(cinder_volume):
-            from infinipy import System
             from capacity import GB
-            [volume] = [item for item in cls.infinipy.get_volumes()
-                        if item.get_metadata('cinder_id') == cinder_volume.id]
+            [volume] = [item for item in cls.infinisdk.volumes.get_all()
+                        if item.get_metadata_value('cinder_id') == cinder_volume.id]
             for simulator in cls.smock.get_inventory()._simulators:
                 if simulator.get_serial() != volume.get_system().get_serial():
                     continue
@@ -577,8 +579,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             execute_assert_success(["yum", "install", "-y", package])
         except ExecutionError, error:
             logger.debug("yum install package {} failed, below is stdout and stderr".format(package))
-            logger.debug(error.get_stdout())
-            logger.debug(error.get_stderr())
+            logger.debug(error.result.get_stdout())
+            logger.debug(error.result.get_stderr())
             if "No package" in error.result.get_stderr() + error.result.get_stdout():
                 raise SkipTest("no scst package for kernel {}".format(kernel_version))
             raise
@@ -611,7 +613,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def configure_iscsi_manager(cls):
         cls.destroy_iscsi_manager_configuration()
         execute_assert_success(["iscsi-manager", "config", "init"])
-        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinipy.address_info.hostname, "infinidat", "123456"])
+        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.get_api_addresses()[0][0], "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
         with logs_context(ISCSIMANAGER_LOGDIR):

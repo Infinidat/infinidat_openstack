@@ -93,7 +93,13 @@ def fix_ip_addresses_in_openstack():
 
     execute(["pkill", "-9", "keystone"])
     with logs_context(KEYSTONE_LOGDIR):
-        execute_assert_success(['openstack-service', 'start'])
+        pid = execute(['openstack-service', 'start'])
+        returncode = pid.get_returncode()
+        if returncode is not None and returncode != 0:
+            if "journalctl" in pid.get_stderr():
+                logger.debug("output of journalctl -xn follows")
+                logger.debug(execute(["journalctl", "-xn"]).get_stdout())
+            raise ExecutionError(pid)
 
 
 @cached_function

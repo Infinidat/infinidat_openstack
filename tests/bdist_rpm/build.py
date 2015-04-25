@@ -60,9 +60,12 @@ def main():
     --vendor Infinidat --packager Infinidat """
 
     change_version_in_setup_py()
-    os.system("projector requirements add infi_requests --commit-changes")
+    os.system("projector requirements add infi_requests")
     os.system("projector devenv build --use-isolated-python")
-    os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
+    try:
+        os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
+    finally:
+        os.system("git checkout -- buildout.cfg")
     for filename in list(glob.glob("dist/*rpm")):
         if 'debuginfo' in filename:
             os.remove(filename)

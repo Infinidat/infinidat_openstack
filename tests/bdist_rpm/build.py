@@ -59,9 +59,9 @@ def main():
     --build-script=tests/bdist_rpm/_build_script.sh \
     --vendor Infinidat --packager Infinidat """
 
-    change_version_in_setup_py()
     os.system("projector requirements add infi_requests")
     os.system("projector devenv build --use-isolated-python")
+    change_version_in_setup_py()
     try:
         os.system(SCRIPT.format(PROJECTDIR, PYTHON, ARCH))
     finally:

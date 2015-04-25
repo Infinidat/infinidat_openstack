@@ -46,6 +46,7 @@ class InstallerTestCase(TestCase):
         from glob import glob
         import infinidat_openstack.__version__
         execute_assert_success(["bin/python", "tests/bdist_rpm/build.py"])
+        reload(infinidat_openstack.__version__)
         short_version = shorten_version(infinidat_openstack.__version__.__version__)
         return glob("dist/infinidat_openstack-{0}-*.rpm".format(short_version))[0]
 

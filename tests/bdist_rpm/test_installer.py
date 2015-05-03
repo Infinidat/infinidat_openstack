@@ -45,8 +45,6 @@ class InstallerTestCase(TestCase):
         from build import shorten_version
         from glob import glob
         import infinidat_openstack.__version__
-        execute_assert_success(["projector", "requirements", "add", "infi_requests", "--commit-changes"])
-        execute_assert_success(["projector", "devenv", "build", "--use-isolated-python"])
         execute_assert_success(["bin/python", "tests/bdist_rpm/build.py"])
         reload(infinidat_openstack.__version__)
         short_version = shorten_version(infinidat_openstack.__version__.__version__)

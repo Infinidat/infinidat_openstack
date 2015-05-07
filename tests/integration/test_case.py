@@ -600,8 +600,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute(["curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
         execute_assert_success(["yum", "makecache"])
-        execute_assert_success(["yum", "install", "-y", "iscsi-manager"])
-        execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"])
+        logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
+        logger.debug(execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"]).get_stdout())
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
             execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])

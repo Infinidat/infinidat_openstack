@@ -593,6 +593,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def install_iscsi_manager(cls):
+        from glob import glob
+        from os import remove
+        for filepath in list(glob("/etc/yum.repos.d/*iscsi*")):
+            remove(filepath)
         execute(["curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
         execute_assert_success(["yum", "makecache"])

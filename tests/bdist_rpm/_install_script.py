@@ -58,13 +58,13 @@ def build_dependency(dependency):
     for fname in insensitive_glob(".cache/dist/{}-*egg".format(dependency)):
         remove_glob(".cache/dist/{}-*tar.gz".format(dependency))
         tgz = os.path.basename(fname)[:-10] + ".tar.gz"  # -py2.7.egg
-        url = "http://pypi01/media/dists/{}".format(tgz)
+        url = "http://pypi.infinidat.com/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)
     for fname in insensitive_glob(".cache/dist/{}-*zip".format(dependency)):
         remove_glob(".cache/dist/{}-*zip".format(dependency))
         tgz = os.path.basename(fname)[:-4] + ".tar.gz"
-        url = "http://pypi01/media/dists/{}".format(tgz)
+        url = "http://pypi.infinidat.com/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)
     # handle packages like json_rest, infinibox_sysdefs and python-cinderclient

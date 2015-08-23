@@ -1,13 +1,20 @@
 from oslo.config import cfg
 try:
-    from cinder.openstack.common import log as logging
     from cinder.openstack.common.gettextutils import _ as translate
     from cinder.volume import driver
     from cinder import exception
-except (ImportError, NameError):  # importing with just python hits NameErorr from the san module, the _ trick
-    from .mock import logging, translate
+except (ImportError, NameError):  # importing with just python hits NameError from the san module, the _ trick
+    from .mock import translate
     from . import mock as driver
     from . import mock as exception
+
+try:
+    from cinder.openstack.common import log as logging
+except (ImportError, NameError):
+    try:
+        from oslo_log import log as logging
+    except (ImportError, NameError):
+        from .mock import logging
 
 from contextlib import contextmanager
 from functools import wraps

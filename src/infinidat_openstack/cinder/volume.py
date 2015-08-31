@@ -32,6 +32,8 @@ volume_opts = [
     cfg.StrOpt('infinidat_volume_name_prefix', help='Cinder volume name prefix in Infinibox', default='openstack-vol'),
     cfg.StrOpt('infinidat_snapshot_name_prefix', help='Cinder snapshot name prefix in Infinibox',
                default='openstack-snap'),
+    cfg.StrOpt('infinidat_cg_name_prefix', help='Cinder consistency groupo name prefix in Infinibox',
+               default='openstack-cg'),
     cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=30),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
@@ -226,7 +228,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                                                       size=cinder_volume.size * GiB,
                                                       pool=self._get_pool(),
                                                       provisioning=self._get_provisioning())
-        self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
+        if cinder_volume.consistencygroup:
+            self._add_volume_to_cg(infinidat_volume, cinder_volume.consistencygroup)
+        self._set_volume_or_snapshot_metadata(
+            infinidat_volume,
+            cinder_volume,
+            cinder_cg=cinder_volume.consistencygroup)
+
 
     def _purge_infinidat_volume(self, infinidat_volume):
         if infinidat_volume.is_mapped():
@@ -236,7 +244,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             self._purge_infinidat_volume(child)
 
         infinidat_volume.delete()
-
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -400,7 +407,12 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         if cinder_volume.size * GiB != infinidat_snapshot.get_size():
             raise exception.InvalidInput(reason=translate("cannot create a volume with size different than its snapshot"))
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
-        self._set_volume_or_snapshot_metadata(infinidat_volume, cinder_volume)
+        if cinder_volume.consistencygroup:
+            self._add_volume_to_cg(infinidat_volume, cinder_volume.consistencygroup)
+        self._set_volume_or_snapshot_metadata(
+            infinidat_volume,
+            cinder_volume,
+            cinder_cg=cinder_volume.consistencygroup)
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -416,7 +428,13 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             })
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
-        self._set_volume_or_snapshot_metadata(tgt_infinidat_volume, tgt_cinder_volume, delete_parent=True)
+        if tgt_cinder_volume.consistencygroup:
+            self._add_volume_to_cg(infinidat_volume, tgt_cinder_volume.consistencygroup)
+        self._set_volume_or_snapshot_metadata(
+            tgt_infinidat_volume,
+            tgt_cinder_volume,
+            delete_parent=True,
+            cinder_cg=tgt_cinder_volume.consistencygroup)
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -454,6 +472,72 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             self._update_volume_stats()
         return self.volume_stats
 
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
+    def create_consistencygroup(self, context, cinder_cg):
+        infinidat_cg = self.system.cons_groups.create(name=self._create_cg_name(cinder_cg), pool=self._get_pool())
+        self._set_cg_metadata(infinidat_cg, cinder_cg)
+        return {'status': 'available'}
+
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
+    def delete_consistencygroup(self, context, cinder_cg):
+        from infinisdk.core.exceptions import ObjectNotFound
+        try:
+            infinidat_cg = self._find_cg(cinder_cg)
+        except ObjectNotFound:
+            LOG.info("delete_consistencygroup: consistency group {0!r} not found in InfiniBox, returning None".format(cinder_cg))
+            return
+        infinidat_cg.delete()
+
+        memebers = self.db.volume_get_all_by_group(context, cinder_cg.id)
+        for cinder_volume in memebers:
+            self.delete_volume(cinder_volume)
+            cinder_volume.status = 'deleted'
+
+        return {'status': cinder_cg['status']}, memebers
+
+
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
+    def update_consistencygroup(self, context, cinder_cg, add_volumes=None, remove_volumes=None):
+        infinidat_cg = self._find_cg(cinder_cg)
+        for vol in add_volumes:
+            infinidat_volume = self._find_volume(vol)
+            infinidat_cg.add_member(infinidat_volume)
+        for vol in remove_volumes:
+            infinidat_volume = self._find_volume(vol)
+            infinidat_cg.remove_member(infinidat_volume)
+
+        return None, None, None
+
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
+    def create_cgsnapshot(self, context, cgsnapshot):
+        # For some reason the cinder consistencygroup object is not passed here correctly
+        cinder_cg_id = cgsnapshot.consistencygroup_id
+        infinidat_cg = self._find_cg_by_id(cinder_cg_id)
+        infinidat_cg.create_snapshot(name=self._create_cg_snapshot_name(cgsnapshot))
+        members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
+        for snapshot in members:
+            snapshot.status = 'available'
+        return {'status': 'available'}, members
+
+    @logbook_compat
+    @infinisdk_to_cinder_exceptions
+    def delete_cgsnapshot(self, context, cgsnapshot):
+        # We don't delete the member snapshots
+        cinder_cg_id = cgsnapshot.consistencygroup_id
+        infinidat_cg = self._find_cg_by_id(cinder_cg_id)
+        infinidat_cg.delete()
+
+        members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
+        for cinder_snapshot in members:
+            self.delete_snapshot(cinder_snapshot)
+            cinder_snapshot.status = 'deleted'
+
+        return {'status': cgsnapshot.status}, members
+
     def _update_volume_stats(self):
         from infinisdk.core.exceptions import ObjectNotFound
         """Retrieve stats info from volume group."""
@@ -464,6 +548,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL
+        data["consistencygroup_support"] = 'True'
 
         try:
             data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
@@ -489,6 +574,21 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _find_snapshot(self, cinder_snapshot):
         return self.system.volumes.get(name=self._create_snapshot_name(cinder_snapshot))
+
+    def _find_cg(self, cinder_cg):
+        return self.system.cons_groups.get(name=self._create_cg_name(cinder_cg))
+
+    def _find_cg_by_id(self, cinder_cg_id):
+        return self.system.cons_groups.get(name=self._create_cg_name_by_id(cinder_cg_id))
+
+    def _add_volume_to_cg(self, infinidat_volume, cinder_cg):
+        from infinisdk.core.exceptions import ObjectNotFound
+        try:
+            infinidat_cg = self._find_cg(cinder_cg)
+        except ObjectNotFound:
+            LOG.info("create_volume: consistency group {0!r} not found in InfiniBox, not adding volume {0!r} to the group.".format(cinder_cg, cinder_volume))
+        else:
+            infinidat_cg.add_member(infinidat_volume)
 
     def _find_host_by_wwpn(self, wwpn):
         return self.system.hosts.get(name=self._create_host_name_by_wwpn(wwpn))
@@ -520,16 +620,34 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _create_snapshot_name(self, cinder_snapshot):
         return "{0}-{1}".format(self.configuration.infinidat_snapshot_name_prefix, cinder_snapshot.id)
 
+    def _create_cg_name(self, cinder_cg):
+        return "{0}-{1}".format(self.configuration.infinidat_cg_name_prefix, cinder_cg.id)
+
+    def _create_cg_name_by_id(self, cinder_cg_id):
+        return "{0}-{1}".format(self.configuration.infinidat_cg_name_prefix, cinder_cg_id)
+
+    def _create_cg_snapshot_name(self, cinder_cg_snapshot):
+        return "{0}-{1}".format(self.configuration.infinidat_snapshot_name_prefix, cinder_cg_snapshot.id)
+
     def _create_host_name_by_wwpn(self, wwpn):
         return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)
 
-    def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False):
+    def _set_volume_or_snapshot_metadata(self, infinidat_volume, cinder_volume, delete_parent=False, cinder_cg=None):
         metadata = {
             "cinder_id": str(cinder_volume.id),
             "delete_parent": str(delete_parent),
             "cinder_display_name": str(cinder_volume.display_name)
             }
+        if cinder_cg and cinder_cg.id:
+            metadata["cinder_cg_id"] = cinder_cg.id
         self._set_obj_metadata(infinidat_volume, metadata)
+
+    def _set_cg_metadata(self, infinidat_cg, cinder_cg):
+        metadata = {
+            "cinder_id": str(cinder_cg.id),
+            "cinder_display_name": str(cinder_cg.name)
+            }
+        self._set_obj_metadata(infinidat_cg, metadata)
 
     def _set_host_metadata(self, infinidat_host):
         metadata = {

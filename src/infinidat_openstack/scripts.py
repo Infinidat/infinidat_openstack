@@ -136,6 +136,7 @@ def handle_commands(arguments, config_file):
         elif arguments['set']:
             key = config.apply(config_parser, address, pool_name, username, password, arguments.get("--thick-provisioning"))
             if write_on_exit:
+                _update_cg_policy()
                 config.update_volume_type(cinder_client, key, get_infinisdk_from_arguments(arguments).get_name(), pool_name)
             _print(DONE_MESSAGE, sys.stderr)
         elif arguments['remove']:
@@ -183,6 +184,15 @@ def handle_commands(arguments, config_file):
 
 def _print(text, stream=sys.stdout):
     print >> stream, text
+
+
+def _update_cg_policy():
+    from re import compile, MULTILINE
+    POLICY_FILENAME = '/etc/cinder/policy.json'
+    policy_data = open(POLICY_FILENAME).read()
+    r = compile('"(consistencygroup:\w+)"\s*:\s*"group:nobody"', MULTILINE)
+    policy_data = r.sub('"\\1" : ""', policy_data)
+    open(POLICY_FILENAME, 'w').write(policy_data)
 
 
 def main(argv=sys.argv[1:]):

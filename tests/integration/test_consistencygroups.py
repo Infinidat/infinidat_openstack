@@ -1,7 +1,8 @@
 import test_case
+from unittest import SkipTest
 from infi.unittest import parameters
-from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.pyutils.contexts import contextmanager
+from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 
 
 def get_cinder_v2_client(host="localhost"):
@@ -10,6 +11,15 @@ def get_cinder_v2_client(host="localhost"):
 
 
 class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
+
+    @classmethod
+    def setup_host(cls):
+        try:
+            import cinderclient.v2.consistencygroups
+        except ImportError:
+            raise SkipTest("This openstack version doesn't support consistency groups")
+        super(CGRealTestCaseMixin, cls).setup_host()
+
     @classmethod
     def setup_infinibox(cls):
         cls.system = cls.system_factory.allocate_infinidat_system(

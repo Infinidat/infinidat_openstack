@@ -14,9 +14,12 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 
     @classmethod
     def skip_if_needed(cls):
+        from cinder.exception import NotFound
         try:
-            import cinderclient.v2.consistencygroups
-        except ImportError:
+            from cinderclient.v2.consistencygroups import ConsistencygroupManager
+            cgm = ConsistencygroupManager(get_cinder_v2_client())
+            cgm.list()
+        except ImportError, NotFound:
             raise SkipTest("This openstack version doesn't support consistency groups")
 
     @classmethod

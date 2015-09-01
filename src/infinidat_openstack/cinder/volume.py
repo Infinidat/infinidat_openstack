@@ -517,10 +517,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # For some reason the cinder consistencygroup object is not passed here correctly
         cinder_cg_id = cgsnapshot.consistencygroup_id
         infinidat_cg = self._find_cg_by_id(cinder_cg_id)
-        infinidat_cg.create_snapshot(name=self._create_cg_snapshot_name(cgsnapshot))
+        infinidat_cgsnap = infinidat_cg.create_snapshot(name=self._create_cg_snapshot_name(cgsnapshot))
         members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         for snapshot in members:
             snapshot.status = 'available'
+        self._set_cg_metadata(infinidat_cgsnap, cgsnapshot)
         return {'status': 'available'}, members
 
     @logbook_compat

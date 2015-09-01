@@ -13,15 +13,20 @@ def get_cinder_v2_client(host="localhost"):
 class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 
     @classmethod
-    def setup_host(cls):
+    def skip_if_needed(cls):
         try:
             import cinderclient.v2.consistencygroups
         except ImportError:
             raise SkipTest("This openstack version doesn't support consistency groups")
+
+    @classmethod
+    def setup_host(cls):
+        cls.skip_if_needed()
         super(CGRealTestCaseMixin, cls).setup_host()
 
     @classmethod
     def setup_infinibox(cls):
+        cls.skip_if_needed()
         cls.system = cls.system_factory.allocate_infinidat_system(
             expiration_in_seconds=3600,
             labels=['ci-ready','infinibox-2.2'])
@@ -30,6 +35,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 
     @classmethod
     def cleanup_infiniboxes_from_cinder(cls):
+        cls.skip_if_needed()
         def cleanup_cgsnaps():
             from cinderclient.v2.cgsnapshots import CgsnapshotManager
             cgsm = CgsnapshotManager(get_cinder_v2_client())

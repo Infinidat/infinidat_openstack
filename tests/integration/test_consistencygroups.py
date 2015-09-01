@@ -14,7 +14,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 
     @classmethod
     def skip_if_needed(cls):
-        from cinder.exception import NotFound
+        from cinderclient.exceptions import NotFound
         try:
             from cinderclient.v2.consistencygroups import ConsistencygroupManager
             cgm = ConsistencygroupManager(get_cinder_v2_client())

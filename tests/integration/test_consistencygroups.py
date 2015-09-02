@@ -69,6 +69,7 @@ class CGTestsMixin(object):
             yield vol
         finally:
             vol.delete()
+            self.wait_for_object_deletion(vol, timeout=30)
 
     @contextmanager
     def cg_context(self, name, pool):
@@ -80,6 +81,7 @@ class CGTestsMixin(object):
             yield cg
         finally:
             cg.delete()
+            self.wait_for_object_deletion(cg, timeout=30)
 
     @contextmanager
     def cgsnapshot_context(self, cg, name):
@@ -91,6 +93,7 @@ class CGTestsMixin(object):
             yield cgs
         finally:
             cgs.delete()
+            self.wait_for_object_deletion(cgs, timeout=30)
 
     def test_sanity(self):
         from cinderclient.v2.volume_snapshots import SnapshotManager

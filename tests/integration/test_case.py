@@ -213,13 +213,14 @@ class OpenStackTestCase(TestCase):
         self.assertIn(cinder_volume.status, ("available", ))
         return cinder_volume
 
+    def get_infinidat_volume_type(self, pool):
+        return None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
+
     def create_volume(self, size_in_gb, pool=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout,)
+        return self._create_volume(size_in_gb, volume_type=self.get_infinidat_volume_type(pool), timeout=timeout)
 
     def create_volume_from_image(self, size_in_gb, pool=None, image=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, imageRef=image.id, timeout=timeout)
+        return self._create_volume(size_in_gb, volume_type=self.get_infinidat_volume_type(pool), imageRef=image.id, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
         cinder_snapshot = self.get_cinder_client().volume_snapshots.create(cinder_volume.id)

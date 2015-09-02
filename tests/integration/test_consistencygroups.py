@@ -56,29 +56,26 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 
 
 class CGTestsMixin(object):
-    def get_infinidat_volume_type(self):
-        from cinderclient.v2.volume_types import VolumeTypeManager
-        vtm = VolumeTypeManager(get_cinder_v2_client())
-        return vtm.list()[0].id
-
     @contextmanager
-    def volume_context(self, name, consistencygroup_id=None):
+    def volume_context(self, name, pool, consistencygroup_id=None):
         from cinderclient.v2.volumes import VolumeManager
         vm = VolumeManager(get_cinder_v2_client())
-        kwargs = {"name": name, "size": 1, "volume_type": self.get_infinidat_volume_type()}
+        kwargs = {"name": name, "size": 1, "volume_type": self.get_infinidat_volume_type(pool)}
         if consistencygroup_id:
             kwargs["consistencygroup_id"] = consistencygroup_id
         vol = vm.create(**kwargs)
+        self.wait_for_object_creation(vol, timeout=30)
         try:
             yield vol
         finally:
             vol.delete()
 
     @contextmanager
-    def cg_context(self, name):
+    def cg_context(self, name, pool):
         from cinderclient.v2.consistencygroups import ConsistencygroupManager
         cgm = ConsistencygroupManager(get_cinder_v2_client())
-        cg = cgm.create(name=name, volume_types=self.get_infinidat_volume_type())
+        cg = cgm.create(name=name, volume_types=self.get_infinidat_volume_type(pool))
+        self.wait_for_object_creation(cg, timeout=30)
         try:
             yield cg
         finally:
@@ -89,6 +86,7 @@ class CGTestsMixin(object):
         from cinderclient.v2.cgsnapshots import CgsnapshotManager
         cgsm = CgsnapshotManager(get_cinder_v2_client())
         cgs = cgsm.create(consistencygroup_id=cg.id, name=name)
+        self.wait_for_object_creation(cgs, timeout=30)
         try:
             yield cgs
         finally:
@@ -99,8 +97,8 @@ class CGTestsMixin(object):
 
         sm = SnapshotManager(get_cinder_v2_client())
         with self.provisioning_pool_context() as pool:
-            with self.cg_context(name="cg1") as cg:
-                with self.volume_context(name="vol1", consistencygroup_id=cg.id) as vol:
+            with self.cg_context(name="cg1", pool=pool) as cg:
+                with self.volume_context(name="vol1", pool=pool, consistencygroup_id=cg.id) as vol:
                     with self.cgsnapshot_context(cg, "cg1snap1") as cgsnap:
                         from cinderclient.v2.volume_snapshots import SnapshotManager
                         sm = SnapshotManager(get_cinder_v2_client())

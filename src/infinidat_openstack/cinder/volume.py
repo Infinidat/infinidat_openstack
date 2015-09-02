@@ -229,11 +229,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                                                       pool=self._get_pool(),
                                                       provisioning=self._get_provisioning())
         if hasattr(cinder_volume, 'consistencygroup') and cinder_volume.consistencygroup:
-            self._add_volume_to_cg(infinidat_volume, cinder_volume.consistencygroup)
+            cinder_cg = cinder_volume.consistencygroup
+            self._add_volume_to_cg(infinidat_volume, cinder_cg)
+        else:
+            cinder_cg = None
         self._set_volume_or_snapshot_metadata(
             infinidat_volume,
             cinder_volume,
-            cinder_cg=cinder_volume.consistencygroup)
+            cinder_cg=cinder_cg)
 
 
     def _purge_infinidat_volume(self, infinidat_volume):
@@ -408,11 +411,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             raise exception.InvalidInput(reason=translate("cannot create a volume with size different than its snapshot"))
         infinidat_volume = infinidat_snapshot.create_clone(name=self._create_volume_name(cinder_volume))
         if hasattr(cinder_volume, 'consistencygroup') and cinder_volume.consistencygroup:
-            self._add_volume_to_cg(infinidat_volume, cinder_volume.consistencygroup)
+            cinder_cg = cinder_volume.consistencygroup
+            self._add_volume_to_cg(infinidat_volume, cinder_cg)
+        else:
+            cinder_cg = None
         self._set_volume_or_snapshot_metadata(
             infinidat_volume,
             cinder_volume,
-            cinder_cg=cinder_volume.consistencygroup)
+            cinder_cg=cinder_cg)
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -429,12 +435,15 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
-            self._add_volume_to_cg(infinidat_volume, tgt_cinder_volume.consistencygroup)
+            cinder_cg = tgt_cinder_volume.consistencygroup
+            self._add_volume_to_cg(infinidat_volume, cinder_cg)
+        else:
+            cinder_cg = None
         self._set_volume_or_snapshot_metadata(
             tgt_infinidat_volume,
             tgt_cinder_volume,
             delete_parent=True,
-            cinder_cg=tgt_cinder_volume.consistencygroup)
+            cinder_cg=cinder_cg)
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions

@@ -34,6 +34,8 @@ volume_opts = [
                default='openstack-snap'),
     cfg.StrOpt('infinidat_cg_name_prefix', help='Cinder consistency groupo name prefix in Infinibox',
                default='openstack-cg'),
+    cfg.StrOpt('infinidat_cgsnapshot_name_prefix', help='Cinder cgsnapshot name prefix in Infinibox',
+               default='openstack-cgsnap'),
     cfg.StrOpt('infinidat_host_name_prefix', help='Cinder host name prefix in Infinibox', default='openstack-host'),
     cfg.IntOpt('infinidat_iscsi_gw_timeout_sec', help='The time between polls in the iscsi manager', default=30),
     cfg.IntOpt('infinidat_iscsi_gw_time_between_retries_sec', help='Time between retries in our polling mechanism', default=1),
@@ -526,7 +528,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # For some reason the cinder consistencygroup object is not passed here correctly
         cinder_cg_id = cgsnapshot.consistencygroup_id
         infinidat_cg = self._find_cg_by_id(cinder_cg_id)
-        infinidat_cgsnap = infinidat_cg.create_snapshot(name=self._create_cg_snapshot_name(cgsnapshot))
+        infinidat_cgsnap = infinidat_cg.create_snapshot(name=self._create_cgsnapshot_name(cgsnapshot))
         members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         for snapshot in members:
             snapshot.status = 'available'
@@ -536,10 +538,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @logbook_compat
     @infinisdk_to_cinder_exceptions
     def delete_cgsnapshot(self, context, cgsnapshot):
-        # We don't delete the member snapshots
-        cinder_cg_id = cgsnapshot.consistencygroup_id
-        infinidat_cg = self._find_cg_by_id(cinder_cg_id)
-        infinidat_cg.delete()
+        from infinisdk.core.exceptions import ObjectNotFound
+        try:
+            # This cgsanpshot is actualy a consistency group object in the system
+            infinidat_cgsnapshot = self._find_cgsnap(cgsnapshot)
+        except ObjectNotFound:
+            LOG.info("delete_cgsnapshot: cgsnapshot {0!r} not found in InfiniBox, returning None".format(cgsnapshot))
+        else:
+            infinidat_cgsnapshot.delete()
 
         members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         for cinder_snapshot in members:
@@ -591,6 +597,12 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _find_cg_by_id(self, cinder_cg_id):
         return self.system.cons_groups.get(name=self._create_cg_name_by_id(cinder_cg_id))
 
+    def _find_cgsnap(self, cinder_cgsnap):
+        cgsnap = self.system.cons_groups.get(name=self._create_cgsnapshot_name(cinder_cgsnap))
+        assert cgsnap.is_snapgroup() # Just making sure since these are actualy cg objects
+        return cgsnap
+
+
     def _add_volume_to_cg(self, infinidat_volume, cinder_cg):
         from infinisdk.core.exceptions import ObjectNotFound
         try:
@@ -636,8 +648,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _create_cg_name_by_id(self, cinder_cg_id):
         return "{0}-{1}".format(self.configuration.infinidat_cg_name_prefix, cinder_cg_id)
 
-    def _create_cg_snapshot_name(self, cinder_cg_snapshot):
-        return "{0}-{1}".format(self.configuration.infinidat_snapshot_name_prefix, cinder_cg_snapshot.id)
+    def _create_cgsnapshot_name(self, cinder_cgsnap):
+        return "{0}-{1}".format(self.configuration.infinidat_cgsnapshot_name_prefix, cinder_cgsnap.id)
 
     def _create_host_name_by_wwpn(self, wwpn):
         return "{0}-{1}".format(self.configuration.infinidat_host_name_prefix, wwpn)

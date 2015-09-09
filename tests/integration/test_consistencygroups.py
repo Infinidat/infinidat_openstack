@@ -137,7 +137,7 @@ class CGTestsMixin(object):
                         self.assertEquals(infinidat_cg.get_metadata_value('cinder_id'), cg.id)
                         infinidat_vol = infinidat_cg.get_members()[0]
                         self.assertEquals(infinidat_vol.get_metadata_value('cinder_id'), vol1.id)
-                        with self.volume_context(name="vol2", pool=pool) as vol2:
+                        with self.volume_context(name="vol2", pool=pool, consistencygroup_id=cg.id) as vol2:
                             with self.cgsnapshot_context(cg, "cg1snap2") as cgsnap2:
                                 snaps = list(sm.list())
                                 self.assertTrue(sorted([s.volume_id for s in snaps]) == [vol1.id, vol1.id, vol2.id])

@@ -542,10 +542,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @infinisdk_to_cinder_exceptions
     def delete_cgsnapshot(self, context, cgsnapshot):
         members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
-        for cinder_snapshot in members:
-            self.delete_snapshot(cinder_snapshot)
-            cinder_snapshot.status = 'deleted'
-
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             # This cgsanpshot is actualy a consistency group object in the system
@@ -555,6 +551,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         else:
             infinidat_cgsnapshot.delete()
 
+        for cinder_snapshot in members:
+            self.delete_snapshot(cinder_snapshot)
+            cinder_snapshot.status = 'deleted'
 
         return {'status': cgsnapshot.status}, members
 

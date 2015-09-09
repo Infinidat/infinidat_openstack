@@ -58,8 +58,10 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 class CGTestsMixin(object):
     @contextmanager
     def volume_context(self, name, pool, consistencygroup_id=None):
+        from cinderclient.v2.consistencygroups import ConsistencygroupManager
         from cinderclient.v2.volumes import VolumeManager
         vm = VolumeManager(get_cinder_v2_client())
+        cgm = ConsistencygroupManager(get_cinder_v2_client())
         kwargs = {"name": name, "size": 1, "volume_type": self.get_infinidat_volume_type(pool)}
         if consistencygroup_id:
             kwargs["consistencygroup_id"] = consistencygroup_id
@@ -68,6 +70,10 @@ class CGTestsMixin(object):
         try:
             yield vol
         finally:
+            if vol.consistencygroup_id:
+                cg = cgm.get(vol.consistencygroup_id)
+                cg.update(remove_volumes=vol.id)
+                self.wait_for_removal_from_consistencygroup(vol, timeout=30)
             vol.delete()
             self.wait_for_object_deletion(vol, timeout=30)
 

@@ -181,6 +181,14 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
+    def wait_for_removal_from_consistencygroup(self, cinder_object, timeout=5):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            if cinder_object.consistencygroup_id is not None:
+                cinder_object.get()
+                raise NotReadyException(cinder_object.id, str(cinder_object.consistencygroup_id))
+        poll()
+
     def wait_for_object_extending_operation_to_complete(self, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():

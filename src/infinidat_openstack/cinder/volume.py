@@ -531,6 +531,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         infinidat_cgsnap = infinidat_cg.create_snapshot(name=self._create_cgsnapshot_name(cgsnapshot))
         members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         for snapshot in members:
+            for infinidat_snapshot in infinidat_cgsnap.get_members():
+                if snapshot.volume_id in infinidat_snapshot.get_parent().get_name():
+                    infinidat_snapshot.update_name(self._create_snapshot_name(snapshot))
             snapshot.status = 'available'
         self._set_cg_metadata(infinidat_cgsnap, cgsnapshot)
         return {'status': 'available'}, members

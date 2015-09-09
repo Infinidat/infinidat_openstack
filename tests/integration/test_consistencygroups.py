@@ -1,4 +1,5 @@
 import test_case
+import time
 from unittest import SkipTest
 from infi.unittest import parameters
 from infi.pyutils.contexts import contextmanager
@@ -117,11 +118,29 @@ class CGTestsMixin(object):
                         self.assertEquals(infinidat_cg.get_metadata_value('cinder_id'), cg.id)
                         infinidat_vol = infinidat_cg.get_members()[0]
                         self.assertEquals(infinidat_vol.get_metadata_value('cinder_id'), vol.id)
-                        # TODO add more volumes, create another snapshot
-                        # TODO remove a volume
-                        # TODO make sure the cinder snapshots are associated with the relevant infindiat snapshots
 
+    def test_add_volume(self):
+        from cinderclient.v2.volume_snapshots import SnapshotManager
 
+        sm = SnapshotManager(get_cinder_v2_client())
+        with self.provisioning_pool_context() as pool:
+            with self.volume_context(name="vol1", pool=pool) as vol1:
+                with self.cg_context(name="cg1", pool=pool) as cg:
+                    cg.update(add_volumes=vol1.id)
+                    time.sleep(5) # Just to make sure the volume was added (we don't have "wait_for_object_addition")
+                    with self.cgsnapshot_context(cg, "cg1snap1") as cgsnap:
+                        from cinderclient.v2.volume_snapshots import SnapshotManager
+                        sm = SnapshotManager(get_cinder_v2_client())
+                        snaps = list(sm.list())
+                        self.assertTrue(any([s.volume_id == vol1.id for s in snaps]))
+                        infinidat_cg = self.infinisdk.cons_groups.get_all()[0]
+                        self.assertEquals(infinidat_cg.get_metadata_value('cinder_id'), cg.id)
+                        infinidat_vol = infinidat_cg.get_members()[0]
+                        self.assertEquals(infinidat_vol.get_metadata_value('cinder_id'), vol1.id)
+                        with self.volume_context(name="vol2", pool=pool) as vol2:
+                            with self.cgsnapshot_context(cg, "cg1snap2") as cgsnap2:
+                                snaps = list(sm.list())
+                                self.assertTrue(sorted([s.volume_id for s in snaps]) == [vol1.id, vol1.id, vol2.id])
 
 
 class CGTests_Fibre_Real(test_case.OpenStackFibreChannelTestCase, CGRealTestCaseMixin, CGTestsMixin):

@@ -181,6 +181,14 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
+    def wait_for_removal_from_consistencygroup(self, cinder_object, timeout=5):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            if cinder_object.consistencygroup_id is not None:
+                cinder_object.get()
+                raise NotReadyException(cinder_object.id, str(cinder_object.consistencygroup_id))
+        poll()
+
     def wait_for_object_extending_operation_to_complete(self, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
@@ -213,13 +221,14 @@ class OpenStackTestCase(TestCase):
         self.assertIn(cinder_volume.status, ("available", ))
         return cinder_volume
 
+    def get_infinidat_volume_type(self, pool):
+        return None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
+
     def create_volume(self, size_in_gb, pool=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, timeout=timeout,)
+        return self._create_volume(size_in_gb, volume_type=self.get_infinidat_volume_type(pool), timeout=timeout)
 
     def create_volume_from_image(self, size_in_gb, pool=None, image=None, timeout=30):
-        volume_type = None if pool is None else "[InfiniBox] {}/{}".format(self.infinisdk.get_name(), pool.get_name())
-        return self._create_volume(size_in_gb, volume_type=volume_type, imageRef=image.id, timeout=timeout)
+        return self._create_volume(size_in_gb, volume_type=self.get_infinidat_volume_type(pool), imageRef=image.id, timeout=timeout)
 
     def create_snapshot(self, cinder_volume, timeout=30):
         cinder_snapshot = self.get_cinder_client().volume_snapshots.create(cinder_volume.id)
@@ -593,11 +602,15 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def install_iscsi_manager(cls):
-        execute(["curl http://iscsi-repo.lab.il.infinidat.com/setup | sudo sh -"], shell=True)
+        from glob import glob
+        from os import remove
+        for filepath in list(glob("/etc/yum.repos.d/*iscsi*")):
+            remove(filepath)
+        execute(["curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
         execute_assert_success(["yum", "makecache"])
-        execute_assert_success(["yum", "install", "-y", "iscsi-manager"])
-        execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"])
+        logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
+        logger.debug(execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"]).get_stdout())
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
             execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])

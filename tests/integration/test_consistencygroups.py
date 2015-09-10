@@ -141,7 +141,7 @@ class CGTestsMixin(object):
                         with self.volume_context(name="vol2", pool=pool, consistencygroup_id=cg.id) as vol2:
                             with self.cgsnapshot_context(cg, "cg1snap2") as cgsnap2:
                                 snaps = list(sm.list())
-                                self.assertEquals(sorted([s.volume_id for s in snaps]), [vol1.id, vol1.id, vol2.id])
+                                self.assertEquals(sorted([s.volume_id for s in snaps]), sorted([vol1.id, vol1.id, vol2.id]))
 
 
 class CGTests_Fibre_Real(test_case.OpenStackFibreChannelTestCase, CGRealTestCaseMixin, CGTestsMixin):

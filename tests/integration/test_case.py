@@ -155,8 +155,9 @@ class OpenStackTestCase(TestCase):
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick'):
+        from capacity import GB
         from infi.vendata.integration_tests.purging import purge
-        pool = self.infinisdk.pools.create()
+        pool = self.infinisdk.pools.create(physical_capacity=20*GB, virtual_capacity=20*GB)
         try:
             with self.cinder_context(self.infinisdk, pool, provisioning):
                 yield pool
@@ -392,7 +393,6 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def setup_host(cls):
-        from capacity import GB
         cls.smock = HostMock()
         cls.smock.get_inventory().add_initiator()
         cls.smock_context = cls.smock.__enter__()

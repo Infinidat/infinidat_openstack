@@ -137,7 +137,7 @@ class ProvisioningTestsMixin(object):
 
     def _do_image_copy_and_assert_size(self, pool, image, count=1):
         with self.assert_volume_count() as get_diff:
-            with self.cinder_image_context(2, pool=pool, image=image, count=count):
+            with self.cinder_image_context(1, pool=pool, image=image, count=count):
                 infinibox_volumes, _ = get_diff()
                 # the right way is to look at the used size, but infinisim's consume updates only the allocated
                 # so instead we provision a thin volume here that its initial allocated value is 0 and not the volume size

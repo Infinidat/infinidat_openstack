@@ -154,10 +154,10 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self, provisioning='thick'):
+    def provisioning_pool_context(self, provisioning='thick', size_in_gb=60):
         from capacity import GB
         from infi.vendata.integration_tests.purging import purge
-        pool = self.infinisdk.pools.create(physical_capacity=60*GB, virtual_capacity=60*GB)
+        pool = self.infinisdk.pools.create(physical_capacity=size_in_gb*GB, virtual_capacity=size_in_gb*GB)
         try:
             with self.cinder_context(self.infinisdk, pool, provisioning):
                 yield pool

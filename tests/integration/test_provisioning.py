@@ -31,8 +31,8 @@ class ProvisioningTestsMixin(object):
                 [self.delete_cinder_object(item) for item in cinder_volumes]
 
     def test_create_volumes_from_different_pools(self):
-        with self.provisioning_pool_context(10) as first:
-            with self.provisioning_pool_context(10) as second:
+        with self.provisioning_pool_context(size_in_gb=10) as first:
+            with self.provisioning_pool_context(size_in_gb=10) as second:
                 with self.cinder_volume_context(1, pool=first), self.cinder_volume_context(1, pool=second):
                     self.assertEquals(1, len(self.infinisdk.volumes.find(pool_id=first.get_id())))
                     self.assertEquals(1, len(self.infinisdk.volumes.find(pool_id=second.get_id())))

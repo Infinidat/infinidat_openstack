@@ -154,17 +154,6 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self, provisioning='thick', size_in_gb=60):
-        from capacity import GB
-        from infi.vendata.integration_tests.purging import purge
-        pool = self.infinisdk.pools.create(physical_capacity=size_in_gb*GB, virtual_capacity=size_in_gb*GB)
-        try:
-            with self.cinder_context(self.infinisdk, pool, provisioning):
-                yield pool
-        finally:
-            purge(pool)
-
-    @contextmanager
     def assert_volume_count(self, diff=0):
         before = list(self.infinisdk.volumes.get_all())
         now = lambda: list(self.infinisdk.volumes.get_all())
@@ -348,6 +337,18 @@ class RealTestCaseMixin(object):
             pass
 
     @contextmanager
+    def provisioning_pool_context(self, provisioning='thick', total_pools_count=1):
+        from capacity import GB
+        size_in_gb = 60 / total_pools_count
+        from infi.vendata.integration_tests.purging import purge
+        pool = self.infinisdk.pools.create(physical_capacity=size_in_gb*GB, virtual_capacity=size_in_gb*GB)
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning):
+                yield pool
+        finally:
+            purge(pool)
+
+    @contextmanager
     def cinder_logs_context(self):
         with logs_context(CINDER_LOGDIR):
             yield
@@ -527,6 +528,16 @@ class MockTestCaseMixin(object):
     @classmethod
     def teardown_infinibox(cls):
         pass
+
+    @contextmanager
+    def provisioning_pool_context(self, provisioning='thick', total_pools_count=1):
+        from infi.vendata.integration_tests.purging import purge
+        pool = self.infinisdk.pools.create()
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning):
+                yield pool
+        finally:
+            purge(pool)
 
     def get_cirros_image(self):
         return Munch({u'status': u'active',

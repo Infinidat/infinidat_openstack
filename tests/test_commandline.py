@@ -56,7 +56,7 @@ class CommandlineTestsMixin(object):
         self.assertEquals(pid.get_stdout(), '')
 
     def test_system_list(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -67,7 +67,7 @@ class CommandlineTestsMixin(object):
         self.assertIn(str(pool.get_id()), pid.get_stdout())
 
     def test_set_and_remove(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -75,7 +75,7 @@ class CommandlineTestsMixin(object):
         pid = self.assert_command(args, stderr=stderr)
 
     def test_set_and_toggle_enable(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -85,25 +85,25 @@ class CommandlineTestsMixin(object):
         pid = self.assert_command(args, stderr=stderr)
 
     def test_enable_non_existing_key(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "enable", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
         stderr="failed to enable '[InfiniBox] {}/{}', not found\n".format(self.infinisdk.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_remove_non_existing_key(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "remove", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
         stderr="failed to remove '[InfiniBox] {}/{}', not found\n".format(self.infinisdk.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_disable_non_existing_key(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "disable", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
         stderr="failed to disable '[InfiniBox] {}/{}', not found\n".format(self.infinisdk.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def test_update_non_existing_key(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "update", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
         stderr="failed to update '[InfiniBox] {}/{}', not found\n".format(self.infinisdk.get_name(), pool.get_id())
         pid = self.assert_command(args, stderr=stderr, return_code=1)
@@ -122,7 +122,7 @@ class CommandlineTestsMixin(object):
         pid = self.assert_command(["volume-backend", "list", "--config-file=/path/does/not/exists"], stderr=stderr, return_code=1)
 
     def test_update_after_pool_rename(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -131,7 +131,7 @@ class CommandlineTestsMixin(object):
         pid = self.assert_command(args, stderr='done\n')
 
     def test_update_all(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -139,7 +139,7 @@ class CommandlineTestsMixin(object):
         pid = self.assert_command(args, stderr='done\n')
 
     def test_no_commit(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name()]
         pid = self.assert_command(args, return_code=0)
         pid = self.assert_command(["volume-backend", "list"], stderr='no systems configured\n')
@@ -166,6 +166,8 @@ def deduce_config_files(cls, args):
 
 
 class RealInfiniBoxMixin(object):
+    POOL_CREATE_KWARGS = dict(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+
     @classmethod
     def setup_infinibox(cls):
         from infi.vendata.integration_tests import system_allocation
@@ -182,6 +184,8 @@ class RealInfiniBoxMixin(object):
 
 
 class MockInfiniBoxMixin(object):
+    POOL_CREATE_KWARGS = dict()
+
     @classmethod
     def setup_infinibox(cls):
         from infinisim.infinibox import Infinibox as Simulator
@@ -297,7 +301,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
             self.assertIn("failed to connect to cinder service", pid.get_stderr())
 
     def test_system_list__exact_output(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -307,7 +311,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         self.assertEquals(EXPECTED_OUTPUT.format(**format_kwargs).lstrip(), pid.get_stdout())
 
     def test_system_list__password_changed(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
         stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
@@ -317,7 +321,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         self.assertEquals(EXPECTED_FAILURE.format(**format_kwargs).lstrip(), pid.get_stdout())
 
     def test_set__invalid_credentials(self):
-        pool = self.infinisdk.pools.create(physical_capacity=30*GiB, virtual_capacity=30*GiB)
+        pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "1nfinidat", "123456", pool.get_name(), "--commit"]
         stderr = 'InfiniBox API failed: You are not authorized for this operation\n'
         pid = self.assert_command(args, stderr=stderr, return_code=1)

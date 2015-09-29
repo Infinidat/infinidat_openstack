@@ -210,7 +210,7 @@ def main(argv=sys.argv[1:]):
         return
     assert_config_file_exists(config_file)
     assert_rc_file_exists(rc_file)
-    with NullHandler(bubble=False):
+    with NullHandler():
         try:
             return handle_commands(arguments, config_file)
         except SystemExit:

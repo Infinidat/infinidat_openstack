@@ -188,7 +188,10 @@ def _print(text, stream=sys.stdout):
 
 def _update_cg_policy():
     from re import compile, MULTILINE
+    from os import path
     POLICY_FILENAME = '/etc/cinder/policy.json'
+    if not path.exists(POLICY_FILENAME):
+        return
     policy_data = open(POLICY_FILENAME).read()
     r = compile('"(consistencygroup:\w+)"\s*:\s*"group:nobody"', MULTILINE)
     policy_data = r.sub('"\\1" : ""', policy_data)

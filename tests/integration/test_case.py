@@ -424,7 +424,8 @@ class MockTestCaseMixin(object):
         volume_driver_config.update(san_ip=infinisdk.get_api_addresses()[0][0],
                                     infinidat_pool_id=pool.get_id(),
                                     san_login="admin", san_password="123456",
-                                    infinidat_provision_type=provisioning)
+                                    infinidat_provision_type=provisioning,
+                                    config_group="infinibox-{0}-pool-{1}".format(infinisdk.get_serial(), pool.get_id()))
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)

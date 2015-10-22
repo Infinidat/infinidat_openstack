@@ -1,4 +1,4 @@
-from oslo.config import cfg
+from oslo_config import cfg
 try:
     from cinder.openstack.common.gettextutils import _ as translate
     from cinder.volume import driver

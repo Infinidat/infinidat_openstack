@@ -1,5 +1,5 @@
 import test_case
-from infi.unittest import parameters
+from infi.unittest import parameters, SkipTest
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.pyutils.contexts import contextmanager
 
@@ -200,6 +200,29 @@ class ProvisioningTestsMixin(object):
             with self._use_multipath_for_image_xfer_context():
                 with self._cinder_quota_context(50):
                     self._do_image_copy_and_assert_size(pool, cirrus_image, 50)
+
+    def test_create_volume_different_backend_name(self):
+        if isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the real configuration")
+        with self.provisioning_pool_context(volume_backend_name="kuku") as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                    [infinibox_volume], _ = get_diff()
+                    self.assertEquals(cinder_volume.id, infinibox_volume.get_metadata_value("cinder_id"))
+
+    def test_create_volume_rename_backend_name(self):
+        if isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the real configuration")
+        with self.provisioning_pool_context() as pool:
+            with self.assert_volume_count() as get_diff:
+                with self.cinder_volume_context(1, pool=pool) as cinder_volume_1:
+                    [infinibox_volume], _ = get_diff()
+                    old_name = "infinibox-{}-pool-{}".format(self.infinisdk.get_serial(), pool.get_id())
+                    with self.rename_backend_context(self.infinisdk.get_api_addresses()[0][0], pool.get_name(), old_name, "bla"):
+                        self.assertEquals(self.get_cinder_client().volume_types.findall()[0].get_keys()["volume_backend_name"], "bla")
+                        with self.cinder_volume_context(1, pool=pool) as cinder_volume_2:
+                            self.assertEquals(cinder_Volume_1.status, 'available')
+                            self.assertEquals(cinder_Volume_2.status, 'available')
 
 
 class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):

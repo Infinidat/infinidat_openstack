@@ -221,8 +221,8 @@ class ProvisioningTestsMixin(object):
                     with self.rename_backend_context(self.infinisdk.get_api_addresses()[0][0], pool.get_name(), old_name, "bla"):
                         self.assertEquals(self.get_cinder_client().volume_types.findall()[0].get_keys()["volume_backend_name"], "bla")
                         with self.cinder_volume_context(1, pool=pool) as cinder_volume_2:
-                            self.assertEquals(cinder_Volume_1.status, 'available')
-                            self.assertEquals(cinder_Volume_2.status, 'available')
+                            self.assertEquals(cinder_volume_1.status, 'available')
+                            self.assertEquals(cinder_volume_2.status, 'available')
 
 
 class ProvisioningTestsMixin_Fibre_Real(test_case.OpenStackFibreChannelTestCase, test_case.RealTestCaseMixin, ProvisioningTestsMixin):

@@ -2,11 +2,12 @@
 
 Usage:
     infini-openstack [options] volume-backend list
-    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning]
+    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning] [--volume-backend-name=volume_backend_name]
     infini-openstack [options] volume-backend remove <management-address> <pool-id>
     infini-openstack [options] volume-backend enable <management-address> <pool-id>
     infini-openstack [options] volume-backend disable <management-address> <pool-id>
     infini-openstack [options] volume-backend update (all | <management-address> <pool-id>)
+    infini-openstack [options] volume-backend rename <management-address> <pool-id> <new-volume-backend-name>
     infini-openstack (-h | --help)
     infini-openstack (-v | --version)
 
@@ -18,6 +19,7 @@ Commands:
     enable                               configure Cinder to load driver for this InfiniBox system
     disable                              configure Cinder not to load driver for this InfiniBox system
     update                               update volume type display name to match the pool name
+    rename                               rename an existing volume backend
 
 Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
@@ -35,7 +37,7 @@ with warnings.catch_warnings():
     import infinisdk # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
-CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update")
+CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update", "rename")
 DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TRACEBACK_FILE = sys.stderr
@@ -134,7 +136,10 @@ def handle_commands(arguments, config_file):
         if arguments['list']:
             return system_list(config_parser)
         elif arguments['set']:
-            key = config.apply(config_parser, address, pool_name, username, password, arguments.get("--thick-provisioning"))
+            volume_backend_name = arguments.get("--volume-backend-name")
+            key = config.apply(config_parser, address, pool_name, username, password, volume_backend_name, arguments.get("--thick-provisioning"))
+            if volume_backend_name and key != volume_backend_name:
+                _print("This InfiniBox is already configured with a different backend name: {}. Please use the rename options instead of --volume-backend-name".format(key), sys.stderr)
             if write_on_exit:
                 _update_cg_policy()
                 config.update_volume_type(cinder_client, key, get_infinisdk_from_arguments(arguments).get_name(), pool_name)
@@ -180,6 +185,17 @@ def handle_commands(arguments, config_file):
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
             _print(DONE_MESSAGE, sys.stderr)
+        elif arguments['rename']:
+            if system is None:
+                _print("failed to rename '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
+                sys.exit(1)
+            new_backend_name = arguments.get('<new-volume-backend-name>')
+            config.rename_backend(cinder_client, config_parser, address, pool_id, system['key'], new_backend_name)
+            infinisdk = get_infinisdk_for_system(system)
+            pool = infinisdk.objects.pools.get(id=pool_id)
+            if write_on_exit:
+                config.update_volume_type(cinder_client, new_backend_name, infinisdk.get_name(), pool.get_name())
+            _print(DONE_MESSAGE, sys.stderr)
 
 
 def _print(text, stream=sys.stdout):
@@ -188,7 +204,10 @@ def _print(text, stream=sys.stdout):
 
 def _update_cg_policy():
     from re import compile, MULTILINE
+    from os import path
     POLICY_FILENAME = '/etc/cinder/policy.json'
+    if not path.exists(POLICY_FILENAME):
+        return
     policy_data = open(POLICY_FILENAME).read()
     r = compile('"(consistencygroup:\w+)"\s*:\s*"group:nobody"', MULTILINE)
     policy_data = r.sub('"\\1" : ""', policy_data)
@@ -210,7 +229,7 @@ def main(argv=sys.argv[1:]):
         return
     assert_config_file_exists(config_file)
     assert_rc_file_exists(rc_file)
-    with NullHandler(bubble=False):
+    with NullHandler():
         try:
             return handle_commands(arguments, config_file)
         except SystemExit:

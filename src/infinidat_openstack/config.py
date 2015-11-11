@@ -127,14 +127,14 @@ def remove(config_parser, key):
         config_parser.remove_section(key)
 
 
-def apply(config_parser, address, pool_name, username, password, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
+def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(address, use_ssl=True, auth=(username, password))
     raise_if_unsupported(get_system_version(address, username, password, system))
     pool = system.pools.get(name=pool_name)
     pool_id = pool.get_id()
-    key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id())
+    key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id()) if not volume_backend_name else volume_backend_name
     enabled = True
     for system in get_systems(config_parser):
         if system['address'] == address and system['pool_id'] == pool_id:
@@ -165,7 +165,21 @@ def update_volume_type(cinder_client, volume_backend_name, system_name, pool_nam
 
 
 def delete_volume_type(cinder_client, volume_backend_name):
-    [volume_type] = [item for item in cinder_client.volume_types.findall()
-                     if item.get_keys().get("volume_backend_name") == volume_backend_name] or [None]
-    if volume_type:
+    # I allow here multiple types for our volume backend
+    # (because the user can easily add a type that correspond to our backend)
+    volume_types = [item for item in cinder_client.volume_types.findall()
+                     if item.get_keys().get("volume_backend_name") == volume_backend_name] or []
+    for volume_type in volume_types:
         cinder_client.volume_types.delete(volume_type)
+
+def rename_backend(cinder_client, config_parser, address, pool_name, old_backend_name, new_backend_name):
+    if not config_parser.has_section(new_backend_name):
+        config_parser.add_section(new_backend_name)
+    for k,v in config_parser._sections[old_backend_name].items(): # We do this hack so we won't inherit the defult section keys/values
+        if k == '__name__':
+            continue
+        config_parser.set(new_backend_name, k, v)
+    enable(config_parser, new_backend_name)
+    disable(config_parser, old_backend_name)
+    remove(config_parser, old_backend_name)
+    update_volume_type(cinder_client, new_backend_name, address, pool_name)

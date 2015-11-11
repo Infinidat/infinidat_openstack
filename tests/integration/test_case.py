@@ -154,16 +154,6 @@ class OpenStackTestCase(TestCase):
         cls.teardown_host()
 
     @contextmanager
-    def provisioning_pool_context(self, provisioning='thick'):
-        from infi.vendata.integration_tests.purging import purge
-        pool = self.infinisdk.pools.create()
-        try:
-            with self.cinder_context(self.infinisdk, pool, provisioning):
-                yield pool
-        finally:
-            purge(pool)
-
-    @contextmanager
     def assert_volume_count(self, diff=0):
         before = list(self.infinisdk.volumes.get_all())
         now = lambda: list(self.infinisdk.volumes.get_all())
@@ -347,6 +337,18 @@ class RealTestCaseMixin(object):
             pass
 
     @contextmanager
+    def provisioning_pool_context(self, provisioning='thick', total_pools_count=1, volume_backend_name=None):
+        from capacity import GB
+        size_in_gb = 60 / total_pools_count
+        from infi.vendata.integration_tests.purging import purge
+        pool = self.infinisdk.pools.create(physical_capacity=size_in_gb*GB, virtual_capacity=size_in_gb*GB)
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning, volume_backend_name=volume_backend_name):
+                yield pool
+        finally:
+            purge(pool)
+
+    @contextmanager
     def cinder_logs_context(self):
         with logs_context(CINDER_LOGDIR):
             yield
@@ -362,13 +364,14 @@ class RealTestCaseMixin(object):
             yield
 
     @contextmanager
-    def cinder_context(self, infinisdk, pool, provisioning='thick'):
+    def cinder_context(self, infinisdk, pool, provisioning='thick', volume_backend_name=None):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinisdk.get_name(), pool.get_name(), "admin", "123456",
                                thick_provisioning=provisioning.lower() == 'thick',
                                prefer_fc=self.prefer_fc,
                                infinidat_allow_pool_not_found=True,
-                               infinidat_purge_volume_on_deletion=True)
+                               infinidat_purge_volume_on_deletion=True,
+                               volume_backend_name=volume_backend_name)
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
@@ -379,6 +382,18 @@ class RealTestCaseMixin(object):
             config.disable(config_parser, key)
             config.remove(config_parser, key)
         restart_cinder()
+
+    @contextmanager
+    def rename_backend_context(self, address, pool_name, old_backend_name, new_backend_name):
+        try:
+            with config.get_config_parser(write_on_exit=True) as config_parser:
+                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, old_backend_name, new_backend_name)
+            restart_cinder()
+            yield
+        finally:
+            with config.get_config_parser(write_on_exit=True) as config_parser:
+                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, new_backend_name, old_backend_name)
+            restart_cinder()
 
     def get_cirros_image(self):
         glance = get_glance_client()
@@ -392,7 +407,6 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def setup_host(cls):
-        from capacity import GB
         cls.smock = HostMock()
         cls.smock.get_inventory().add_initiator()
         cls.smock_context = cls.smock.__enter__()
@@ -418,12 +432,13 @@ class MockTestCaseMixin(object):
 
     @classmethod
     @contextmanager
-    def cinder_context(cls, infinisdk, pool, provisioning='thick'):
+    def cinder_context(cls, infinisdk, pool, provisioning='thick', volume_backend_name=None):
         volume_driver_config = Munch(**{item.name: item.default for item in volume_opts})
         volume_driver_config.update(san_ip=infinisdk.get_api_addresses()[0][0],
                                     infinidat_pool_id=pool.get_id(),
                                     san_login="admin", san_password="123456",
-                                    infinidat_provision_type=provisioning)
+                                    infinidat_provision_type=provisioning,
+                                    config_group="infinibox-{0}-pool-{1}".format(infinisdk.get_serial(), pool.get_id()))
         volume_driver_config.append_config_values = lambda values: None
         volume_driver_config.safe_get = lambda key: volume_driver_config.get(key, None)
         volume_driver = InfiniboxVolumeDriver(configuration=volume_driver_config)
@@ -527,6 +542,16 @@ class MockTestCaseMixin(object):
     @classmethod
     def teardown_infinibox(cls):
         pass
+
+    @contextmanager
+    def provisioning_pool_context(self, provisioning='thick', total_pools_count=1, volume_backend_name=None):
+        from infi.vendata.integration_tests.purging import purge
+        pool = self.infinisdk.pools.create()
+        try:
+            with self.cinder_context(self.infinisdk, pool, provisioning, volume_backend_name=volume_backend_name):
+                yield pool
+        finally:
+            purge(pool)
 
     def get_cirros_image(self):
         return Munch({u'status': u'active',

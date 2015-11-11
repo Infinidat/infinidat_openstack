@@ -1,4 +1,7 @@
-from oslo.config import cfg
+try:
+    from oslo_config import cfg
+except ImportError:
+    from oslo.config import cfg
 try:
     from cinder.openstack.common.gettextutils import _ as translate
     from cinder.volume import driver
@@ -161,6 +164,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         super(InfiniboxVolumeDriver, self).__init__(*args, **kwargs)
         self.configuration.append_config_values(volume_opts)
         self.configuration.append_config_values(san_opts)
+        self.volume_backend_name = self.configuration.config_group
         self.system = None
         self.pool = None
         self.volume_stats = None
@@ -562,8 +566,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         """Retrieve stats info from volume group."""
 
         data = {}
-        system_and_pool_name = "infinibox-{0}-pool-{1}".format(self.system.get_serial(), self.configuration.infinidat_pool_id)
-        data["volume_backend_name"] = system_and_pool_name
+        data["volume_backend_name"] = self.volume_backend_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
         data["storage_protocol"] = STATS_PROTOCOL

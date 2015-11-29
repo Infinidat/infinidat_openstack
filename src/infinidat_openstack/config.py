@@ -34,7 +34,7 @@ def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
     try:
         from collections import OrderedDict
     except ImportError:
-        from .collections import OrderedDict
+        from .cinder.collections import OrderedDict
 
     parser = RawConfigParser(dict_type=OrderedDict)
     parser.optionxform = str    # make options case-sensitive

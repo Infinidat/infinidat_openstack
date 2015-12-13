@@ -395,9 +395,17 @@ class RealTestCaseMixin(object):
                 config.rename_backend(get_cinder_client(), config_parser, address, pool_name, new_backend_name, old_backend_name)
             restart_cinder()
 
+    def _recreate_cirros_image(self, glance):
+        cirros_image_file = urlretrieve("http://download.cirros-cloud.net/0.3.4/cirros-0.3.4-x86_64-disk.img")[0]
+        return glance.images.create(name="cirros", is_public=True, container_format="bare", disk_format="qcow2", data=cirros_image_file)
+
     def get_cirros_image(self):
         glance = get_glance_client()
-        return glance.images.find(name='cirros')
+        image = glance.images.find(name='cirros')
+        if image.status != "active":
+            image.delete()
+            image = self._recreate_cirros_image(glance)
+        return image
 
 
 class MockTestCaseMixin(object):

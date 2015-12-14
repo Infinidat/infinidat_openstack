@@ -1,6 +1,3 @@
-import logging
-
-
 class VolumeDriver(object):
     def __init__(self, *args, **kwargs):
         super(VolumeDriver, self).__init__()

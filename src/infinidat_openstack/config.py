@@ -98,7 +98,7 @@ def get_system(config_parser, address, pool_id):
 
 
 def set_enabled_backends(config_parser, enabled_backends):
-    config_parser.set(ENABLED_BACKENDS['section'],ENABLED_BACKENDS['option'], ",".join(enabled_backends))
+    config_parser.set(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option'], ",".join(enabled_backends))
 
 
 def update_enabled_backends(config_parser, key, update_method):
@@ -175,7 +175,7 @@ def delete_volume_type(cinder_client, volume_backend_name):
 def rename_backend(cinder_client, config_parser, address, pool_name, old_backend_name, new_backend_name):
     if not config_parser.has_section(new_backend_name):
         config_parser.add_section(new_backend_name)
-    for k,v in config_parser._sections[old_backend_name].items(): # We do this hack so we won't inherit the defult section keys/values
+    for k, v in config_parser._sections[old_backend_name].items():  # We do this hack so we won't inherit the defult section keys/values
         if k == '__name__':
             continue
         config_parser.set(new_backend_name, k, v)

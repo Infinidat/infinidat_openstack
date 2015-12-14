@@ -20,7 +20,6 @@ except (ImportError, NameError):
         from .mock import logging
 
 from contextlib import contextmanager
-from functools import wraps
 from capacity import GiB
 from time import sleep, time
 from infi.pyutils.decorators import wraps
@@ -72,7 +71,7 @@ CONF.register_opts(san_opts)
 
 SYSTEM_METADATA_VALUE = 'openstack'
 STATS_VENDOR = 'Infinidat'
-STATS_PROTOCOL = 'iSCSI/FC' # Nothing is actually done with this field
+STATS_PROTOCOL = 'iSCSI/FC'  # Nothing is actually done with this field
 INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
 
@@ -244,7 +243,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             cinder_volume,
             cinder_cg=cinder_cg)
 
-
     def _purge_infinidat_volume(self, infinidat_volume):
         if infinidat_volume.is_mapped():
             infinidat_volume.unmap()
@@ -334,7 +332,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _initialize_connection__iscsi(self, cinder_volume, connector):
         infinidat_volume = self._find_volume(cinder_volume)
-        host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
+        host = self._wait_for_iscsi_host(connector[u'initiator'])  # raises error after timeout
         self._set_host_metadata(host)
 
         # we would like to compare before/after the map to make sure at least one target is aware of the map
@@ -397,7 +395,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _terminate_connection__iscsi(self, cinder_volume, connector, force=False):
         infinidat_volume = self._find_volume(cinder_volume)
         try:
-            host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            host = self._wait_for_iscsi_host(connector['initiator'])  # raises error after timeout
         except ISCSIGWTimeoutException:
             return
         self._set_host_metadata(host)
@@ -512,7 +510,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         return {'status': cinder_cg['status']}, memebers
 
-
     @logbook_compat
     @infinisdk_to_cinder_exceptions
     def update_consistencygroup(self, context, cinder_cg, add_volumes=None, remove_volumes=None):
@@ -605,9 +602,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _find_cgsnap(self, cinder_cgsnap):
         cgsnap = self.system.cons_groups.get(name=self._create_cgsnapshot_name(cinder_cgsnap))
-        assert cgsnap.is_snapgroup() # Just making sure since these are actualy cg objects
+        assert cgsnap.is_snapgroup()  # Just making sure since these are actualy cg objects
         return cgsnap
-
 
     def _add_volume_to_cg(self, infinidat_volume, cinder_cg):
         from infinisdk.core.exceptions import ObjectNotFound
@@ -691,8 +687,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         obj.set_metadata_from_dict(metadata)
 
     def _assert_connector(self, connector):
-        if ((not u'wwpns' in connector or not connector[u'wwpns']) and
-            (not u'initiator' in connector or not connector[u'initiator']) ):
+        if ((u'wwpns' not in connector or not connector[u'wwpns']) and
+            (u'initiator' not in connector or not connector[u'initiator'])):
             LOG.warn("no WWPN or iSCSI initiator was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('No WWPN or iSCSI initiator was received'))
 
@@ -702,7 +698,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         LOG.info("attempting to flush caches for {0!r}".format(attach_info))
         fd = os.open(attach_info['device']['path'], os.O_RDONLY)
         try:
-            ioctl(fd, 4705) # BLKFLSBUF
+            ioctl(fd, 4705)  # BLKFLSBUF
         finally:
             os.close(fd)
         self._sleep_after_sync()
@@ -725,7 +721,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             # commit b868ae707f9ecbe254101e21d9d7ffa0b05b17d1 changed the interface for _detach_volume
             # we need the attach_info instance, so we use this hack
-            from .getcallargs import getcallargs # new in Python-2.7, we bundled the function for Python-2.6
+            from .getcallargs import getcallargs  # new in Python-2.7, we bundled the function for Python-2.6
             attach_info = getcallargs(super(InfiniboxVolumeDriver, self)._detach_volume, *args, **kwargs)['attach_info']
             self._flush_caches_for_specific_device(attach_info)
         except:

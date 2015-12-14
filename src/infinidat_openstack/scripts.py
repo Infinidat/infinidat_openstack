@@ -32,9 +32,9 @@ import docopt
 import sys
 import os
 import warnings
-warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
+warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__()  # sentinels has deprecation warning
 with warnings.catch_warnings():
-    import infinisdk # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
+    import infinisdk  # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update", "rename")
@@ -72,11 +72,10 @@ def system_list(config_parser):
 
 def parse_environment(text):
     """:returns: a 4tuple (username, password, project, url"""
-    return_value = []
     items = [(line.split("=")[0].split()[1], line.split("=")[1])
             for line in text.splitlines()
             if "=" in line and line.startswith("export ")]
-    env = dict(items) # no dict comprehension in Python-2.6
+    env = dict(items)  # no dict comprehension in Python-2.6
     return env["OS_USERNAME"], env["OS_PASSWORD"], env["OS_TENANT_NAME"], env["OS_AUTH_URL"]
 
 
@@ -100,8 +99,8 @@ def assert_rc_file_exists(config_file):
 
 
 def get_infinisdk_for_system(system):
-    return get_infinisdk_from_arguments({'<management-address>':system['address'], '<username>':system['username'],
-                                        '<password>':system['password']})
+    return get_infinisdk_from_arguments({'<management-address>': system['address'], '<username>': system['username'],
+                                        '<password>': system['password']})
 
 
 def get_infinisdk_from_arguments(arguments):

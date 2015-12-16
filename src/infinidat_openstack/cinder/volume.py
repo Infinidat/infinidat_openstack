@@ -17,7 +17,7 @@ except (ImportError, NameError):
     try:
         from oslo_log import log as logging
     except (ImportError, NameError):
-        from .mock import logging
+        import logging
 
 from contextlib import contextmanager
 from capacity import GiB

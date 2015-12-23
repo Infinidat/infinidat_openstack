@@ -220,11 +220,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def check_for_setup_error(self):
         """Returns an error if prerequisites aren't met."""
         if not self.configuration.san_password:
-            raise exception.InvalidInput(reason=_('Specify san_password'))
+            raise exception.InvalidInput(reason=translate('Specify san_password'))
 
         # The san_ip must always be set, because we use it for the target
         if not self.configuration.san_ip:
-            raise exception.InvalidInput(reason=_("san_ip must be set"))
+            raise exception.InvalidInput(reason=translate("san_ip must be set"))
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -440,7 +440,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
             cinder_cg = tgt_cinder_volume.consistencygroup
-            self._add_volume_to_cg(infinidat_volume, cinder_cg)
+            self._add_volume_to_cg(tgt_infinidat_volume, cinder_cg)
         else:
             cinder_cg = None
         self._set_volume_or_snapshot_metadata(
@@ -610,7 +610,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             infinidat_cg = self._find_cg(cinder_cg)
         except ObjectNotFound:
-            LOG.info("create_volume: consistency group {0!r} not found in InfiniBox, not adding volume {0!r} to the group.".format(cinder_cg, cinder_volume))
+            LOG.info("create_volume: consistency group {0!r} not found in InfiniBox, not adding volume {0!r} to the group.".format(cinder_cg, infinidat_volume))
         else:
             infinidat_cg.add_member(infinidat_volume)
 

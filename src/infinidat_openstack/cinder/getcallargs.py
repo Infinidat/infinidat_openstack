@@ -1,4 +1,5 @@
 import inspect
+import sys
 
 
 def getcallargs(func, *positional, **named): # new in Python-2.7, and we need it in Python-2.6

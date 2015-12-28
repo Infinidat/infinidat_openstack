@@ -398,7 +398,8 @@ class RealTestCaseMixin(object):
     def _recreate_cirros_image(self, glance):
         from urllib import urlretrieve
         cirros_image_file = urlretrieve("http://download.cirros-cloud.net/0.3.4/cirros-0.3.4-x86_64-disk.img")[0]
-        return glance.images.create(name="cirros", is_public=True, container_format="bare", disk_format="qcow2", data=cirros_image_file)
+        with open(cirros_image_file, 'rb') as fd:
+            return glance.images.create(name="cirros", is_public=True, container_format="bare", disk_format="qcow2", data=fd)
 
     def get_cirros_image(self):
         glance = get_glance_client()

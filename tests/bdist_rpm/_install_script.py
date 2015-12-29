@@ -9,7 +9,7 @@ INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1
 EXCLUDED_PACKAGES = ("distribute", "setuptools", "pip",
                      "six", "requests", "bson", "pymongo", "ipython", "oslo.config",
                      "python-cinderclient", "babel", "pbr", "simplejson", "prettytable",
-                     "python-dateutil")
+                     "python-dateutil", "python-contextlib2")
 
 
 def get_name():

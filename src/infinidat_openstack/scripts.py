@@ -38,7 +38,7 @@ with warnings.catch_warnings():
 
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update", "rename")
-DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
+DONE_MESSAGE = "done, please restart cinder-volume service for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TRACEBACK_FILE = sys.stderr
 TABLE_HEADER = ["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"]
@@ -115,6 +115,10 @@ def get_infinisdk_from_arguments(arguments):
 def handle_commands(arguments, config_file):
     from . import config
     from .exceptions import UserException
+    def print_done_message(should_restart):
+        msg = DONE_MESSAGE if should_restart else DONE_NO_RESTART_MESSAGE
+        _print(msg, sys.stderr)
+
     any_modyfing_kwargs = any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
     write_on_exit = arguments.get("--commit") and any_modyfing_kwargs
     if any_modyfing_kwargs and not arguments.get("--commit"):
@@ -142,7 +146,8 @@ def handle_commands(arguments, config_file):
             if write_on_exit:
                 _update_cg_policy()
                 config.update_volume_type(cinder_client, key, get_infinisdk_from_arguments(arguments).get_name(), pool_name)
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
+
         elif arguments['remove']:
             if system is None:
                 _print("failed to remove '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -151,7 +156,7 @@ def handle_commands(arguments, config_file):
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
             config.remove(config_parser, system['key'])
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['enable']:
             if system is None:
                 _print("failed to enable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -161,7 +166,7 @@ def handle_commands(arguments, config_file):
             pool = infinisdk.objects.pools.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['update']:
             if arguments["all"]:
                 for _system in config.get_systems(config_parser):
@@ -175,7 +180,7 @@ def handle_commands(arguments, config_file):
                 infinisdk = get_infinisdk_for_system(system)
                 pool = infinisdk.pools.get(id=system['pool_id'])
                 config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
-            _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
+            print_done_message(should_restart=False)
         elif arguments['disable']:
             if system is None:
                 _print("failed to disable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -183,7 +188,7 @@ def handle_commands(arguments, config_file):
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['rename']:
             if system is None:
                 _print("failed to rename '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -194,7 +199,7 @@ def handle_commands(arguments, config_file):
             pool = infinisdk.objects.pools.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, new_backend_name, infinisdk.get_name(), pool.get_name())
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
 
 
 def _print(text, stream=sys.stdout):

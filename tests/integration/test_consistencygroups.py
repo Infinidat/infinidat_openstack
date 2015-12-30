@@ -4,6 +4,7 @@ from unittest import SkipTest
 from infi.unittest import parameters
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
+from cinderclient.v2.consistencygroups import ConsistencygroupManager
 
 
 def get_cinder_v2_client(host="localhost"):
@@ -17,7 +18,6 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
     def skip_if_needed(cls):
         from cinderclient.exceptions import NotFound, ClientException
         try:
-            from cinderclient.v2.consistencygroups import ConsistencygroupManager
             cgm = ConsistencygroupManager(get_cinder_v2_client())
             cgm.list()
         except (ImportError, NotFound, ClientException):
@@ -46,12 +46,20 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
             for snap in cgsm.list():
                 snap.delete()
 
+        def remove_volumes_from_cgs():
+            cinder_client = get_cinder_v2_client()
+            cgm = ConsistencygroupManager(get_cinder_v2_client())
+            for volume in cinder_client.volumes.list():
+                if volume.consistencygroup_id:
+                    cg = cgm.get(volume.consistencygroup_id)
+                    cg.update(remove_volumes=volume.id)
+
         def cleanup_cgs():
-            from cinderclient.v2.consistencygroups import ConsistencygroupManager
             cgm = ConsistencygroupManager(get_cinder_v2_client())
             for cg in cgm.list():
                 cg.delete(force=True)
         cleanup_cgsnaps()
+        remove_volumes_from_cgs()
         cleanup_cgs()
         super(CGRealTestCaseMixin, cls).cleanup_infiniboxes_from_cinder()
 
@@ -59,7 +67,6 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
 class CGTestsMixin(object):
     @contextmanager
     def volume_context(self, name, pool, consistencygroup_id=None, delete=True):
-        from cinderclient.v2.consistencygroups import ConsistencygroupManager
         from cinderclient.v2.volumes import VolumeManager
         vm = VolumeManager(get_cinder_v2_client())
         cgm = ConsistencygroupManager(get_cinder_v2_client())
@@ -81,7 +88,6 @@ class CGTestsMixin(object):
 
     @contextmanager
     def cg_context(self, name, pool):
-        from cinderclient.v2.consistencygroups import ConsistencygroupManager
         cgm = ConsistencygroupManager(get_cinder_v2_client())
         cg = cgm.create(name=name, volume_types=self.get_infinidat_volume_type(pool))
         self.wait_for_object_creation(cg, timeout=30)

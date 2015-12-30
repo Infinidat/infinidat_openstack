@@ -50,7 +50,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
             from cinderclient.v2.consistencygroups import ConsistencygroupManager
             cgm = ConsistencygroupManager(get_cinder_v2_client())
             for cg in cgm.list():
-                cg.delete()
+                cg.delete(force=True)
         cleanup_cgsnaps()
         cleanup_cgs()
         super(CGRealTestCaseMixin, cls).cleanup_infiniboxes_from_cinder()

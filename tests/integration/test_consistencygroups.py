@@ -53,6 +53,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
                 if volume.consistencygroup_id:
                     cg = cgm.get(volume.consistencygroup_id)
                     cg.update(remove_volumes=volume.id)
+                    cls.wait_for_removal_from_consistencygroup(volume, timeout=30)
 
         def cleanup_cgs():
             cgm = ConsistencygroupManager(get_cinder_v2_client())
@@ -131,8 +132,8 @@ class CGTestsMixin(object):
 
         sm = SnapshotManager(get_cinder_v2_client())
         with self.provisioning_pool_context() as pool:
-            with self.volume_context(name="vol1", pool=pool, delete=False) as vol1: # will be deleted along with the cg
-                with self.cg_context(name="cg1", pool=pool) as cg:
+            with self.cg_context(name="cg1", pool=pool) as cg:
+                with self.volume_context(name="vol1", pool=pool) as vol1:
                     cg.update(add_volumes=vol1.id)
                     time.sleep(5) # Just to make sure the volume was added (we don't have "wait_for_object_addition")
                     with self.cgsnapshot_context(cg, "cg1snap1") as cgsnap:

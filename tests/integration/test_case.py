@@ -171,7 +171,8 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
-    def wait_for_removal_from_consistencygroup(self, cinder_object, timeout=5):
+    @classmethod
+    def wait_for_removal_from_consistencygroup(cls, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
             if cinder_object.consistencygroup_id is not None:

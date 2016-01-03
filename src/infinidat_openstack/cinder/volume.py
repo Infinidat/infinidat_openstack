@@ -157,7 +157,7 @@ def get_powertools_version():
 
 
 class InfiniboxVolumeDriver(driver.VolumeDriver):
-    VERSION = '1.0'
+    VERSION = '1.1'
 
     def __init__(self, *args, **kwargs):
         super(InfiniboxVolumeDriver, self).__init__(*args, **kwargs)
@@ -205,7 +205,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def create_export(self, context, volume):
+    def create_export(self, context, volume, connector=None):
         """Exports the volume."""
         pass
 
@@ -307,7 +307,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def initialize_connection(self, cinder_volume, connector):
+    def initialize_connection(self, cinder_volume, connector, initiator_data=None):
         # connector is a dict containing information about the connection. For example:
         # connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
         #            u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
@@ -374,7 +374,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def terminate_connection(self, cinder_volume, connector, force=False):
+    def terminate_connection(self, cinder_volume, connector, force=False, **kwargs):
         self._assert_connector(connector)
         methods = dict(fc=self._terminate_connection__fc,
                        iscsi=self._terminate_connection__iscsi)
@@ -494,7 +494,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def delete_consistencygroup(self, context, cinder_cg):
+    def delete_consistencygroup(self, context, cinder_cg, members=None):
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             infinidat_cg = self._find_cg(cinder_cg)
@@ -503,7 +503,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             return
         infinidat_cg.delete()
 
-        memebers = self.db.volume_get_all_by_group(context, cinder_cg.id)
+        # 'members' (volumes) is passed as a parameter in liberty and above but not on kilo
+        if members is None:
+            memebers = self.db.volume_get_all_by_group(context, cinder_cg.id)
         for cinder_volume in memebers:
             self.delete_volume(cinder_volume)
             cinder_volume.status = 'deleted'
@@ -541,8 +543,10 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def delete_cgsnapshot(self, context, cgsnapshot):
-        members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
+    def delete_cgsnapshot(self, context, cgsnapshot, members=None):
+        # 'members' (snapshots) is passed as a parameter in liberty and above but not on kilo
+        if members is None:
+            members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             # This cgsanpshot is actualy a consistency group object in the system

@@ -128,11 +128,19 @@ def remove(config_parser, key):
 
 
 def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
+    import sys
+    from .scripts import _print
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    if system is None:
+        _print("Could not connect to system \"{}\"".format(pool_name), sys.stderr)
+        raise SystemExit(1)
     raise_if_unsupported(get_system_version(address, username, password, system))
-    pool = system.pools.get(name=pool_name)
+    pool = system.pools.safe_get(name=pool_name)
+    if pool is None:
+        _print("Pool \"{}\" not found".format(pool_name), sys.stderr)
+        raise SystemExit(1)
     pool_id = pool.get_id()
     key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id()) if not volume_backend_name else volume_backend_name
     enabled = True

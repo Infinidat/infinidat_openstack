@@ -238,10 +238,10 @@ def main(argv=sys.argv[1:]):
             return handle_commands(arguments, config_file)
         except SystemExit:
             raise
-        except APICommandFailed, error:
+        except APICommandFailed as error:
             _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
             raise SystemExit(1)
-        except UserException, error:
+        except UserException as error:
             _print(error.message or error, sys.stderr)
             raise SystemExit(1)
         except:

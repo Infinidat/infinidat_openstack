@@ -274,7 +274,10 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     @contextmanager
     def mock_clients_context(self):
         from infinisdk import InfiniBox
-        infinisdk_side_effect = lambda address, use_ssl, auth=("admin", "123456"): InfiniBox(self.simulator, auth=auth)
+        def infinisdk_side_effect(address, use_ssl, auth=("admin", "123456")):
+            if address == self.infinisdk.get_name():
+                return InfiniBox(self.simulator, auth=auth)
+            InfiniBox(address, auth=auth)
         with patch("infinisdk.InfiniBox", side_effect=infinisdk_side_effect) as infinisdk:
             with patch("cinderclient.v1.client.Client"):
                 yield
@@ -338,7 +341,13 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_set__invalid_pool_name(self):
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", "foo", "--commit"]
-        pid = self.assert_command(args, stderr=None, return_code=1)
+        stderr = 'Pool "foo" not found\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
+
+    def test_set__invalid_system(self):
+        args = ["volume-backend", "set", "foo", "admin", "123456", "foo", "--commit"]
+        stderr = 'Could not connect to system "foo"\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def get_product_version(self):
         from infinidat_openstack.__version__ import __version__

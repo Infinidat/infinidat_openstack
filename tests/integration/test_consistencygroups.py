@@ -58,7 +58,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
         def cleanup_cgs():
             cgm = ConsistencygroupManager(get_cinder_v2_client())
             for cg in cgm.list():
-                cg.delete(force=True)
+                cg.delete()
         cleanup_cgsnaps()
         remove_volumes_from_cgs()
         cleanup_cgs()
@@ -80,6 +80,7 @@ class CGTestsMixin(object):
             yield vol
         finally:
             if delete:
+                vol.get()
                 if vol.consistencygroup_id:
                     cg = cgm.get(vol.consistencygroup_id)
                     cg.update(remove_volumes=vol.id)

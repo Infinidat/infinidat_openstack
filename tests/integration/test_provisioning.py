@@ -187,8 +187,7 @@ class ProvisioningTestsMixin(object):
         self._set_cinder_config_values(use_default_quota_class="false",
                                        quota_volumes=count)
         try:
-            self.get_cinder_client().quotas.defaults('admin').volumes == count
-            self.get_cinder_client().quotas.get('admin').volumes == count
+            assert self.get_cinder_client().quotas.defaults('admin').volumes == count
             yield
         finally:
             self._set_cinder_config_values(use_default_quota_class="true",

@@ -1,12 +1,14 @@
 from infi.execute import execute_assert_success
+from infi.recipe.application_packager import utils
 from contextlib import contextmanager
 import tempfile
 import glob
 import os
 import shutil
+import logging
 
-class EggNotFoundException(Exception):
-    pass
+
+logger = logging.getLogger(__name__)
 
 def get_name():
     from infinidat_openstack.config import get_config_parser
@@ -34,12 +36,14 @@ def find_pacakge_in_cache_dist(package_name):
     path_no_ver = os.path.abspath(os.path.join(cache_dist_dir, package_name))
     extensions = [".tar.gz", '.zip', '.egg']
     for filename in os.listdir(cache_dist_dir):
-        if not filename.lower().replace("-", "_").startswith(package_name.replace("-", "_")):
+        if not filename.lower().replace("-", "_").startswith(package_name.replace("-", "_").lower()):
             continue
         for extension in extensions:
             if filename.endswith(extension):
                 return os.path.join(cache_dist_dir, filename)
-    raise EggNotFoundException("Couldn't find package {} in {}".format(package_name, cache_dist_dir))
+    msg = "Couldn't find package {} in {}".format(package_name, cache_dist_dir)
+    logger.error(msg)
+    raise Exception(msg)
 
 def unzip(filename, dest_dir):
     if filename.endswith('.tar.gz'):
@@ -47,7 +51,9 @@ def unzip(filename, dest_dir):
     elif filename.endswith('.zip'):
         execute("unzip -o {} -d {}".format(filename, dest_dir))
     else:
-        raise "Unkown zip file extension"
+        msg = "Unknown zip file extension"
+        logger.error(msg)
+        raise Exception(msg)
 
 @contextmanager
 def change_directory_context(directory):
@@ -65,7 +71,7 @@ def format_dependency_string(dependency_list):
     formatted_dep_list = []
     for package, dep, version_specific_dep in dependency_list:
         specific = " (>= {})".format(version_specific_dep.split(">=")[-1]) if ">=" in version_specific_dep else ""
-        formatted_dep_list.append("{}{}".format(dep, specific))
+        formatted_dep_list.append("{}{}".format(get_deb_package_name(dep), specific))
     return " --depends " + "\"" + ", ".join(formatted_dep_list) + "\""
 
 def remove_pyc_files():
@@ -78,7 +84,9 @@ def remove_zip_extension(filename):
     elif filename.endswith('.zip'):
         return splitext(filename)[0]
     else:
-        raise "Unkown zip file extension"
+        msg = "Unknown zip file extension"
+        logger.error(msg)
+        raise Exception(msg)
 
 def convert_egg_to_tar_gz(compressed_egg_path):
     new_basename = os.path.basename(compressed_egg_path).replace('-py2.7.egg', '.tar.gz')
@@ -92,22 +100,26 @@ def build_bdist_deb():
 
     def build_deb(package_name, dependencies):
         dependecies_str = format_dependency_string(dependencies)
-        print package_name, dependecies_str
-        execute("/usr/bin/python setup.py --command-packages=stdeb.command sdist_dsc" + dependecies_str)
+        msg = "Building package {}, with dependencies: {}".format(package_name, dependencies)
+        logger.info(msg)
+        execute("/usr/bin/python setup.py --command-packages=stdeb.command sdist_dsc --package={}".format(get_deb_package_name(package_name)) + dependecies_str)
         [package_dir] = [item for item in glob.glob(os.path.join('deb_dist', '*')) if os.path.isdir(item)]
         with change_directory_context(package_dir):
             execute("dpkg-buildpackage -b")
 
     def copy_deb_to_parts(egg_dir):
+        from infi.os_info import get_platform_string
         for debfile in glob.glob(os.path.join(egg_dir, 'deb_dist', '*.deb')):
-            shutil.copy(debfile, 'parts')
+            basename = os.path.basename(debfile.replace('_all', '-' + get_platform_string()))
+            basename = basename.replace('_amd64', '-' + get_platform_string())
+            shutil.copy(debfile, os.path.join('parts', basename))
 
     def build_dependency(package_name):
         dependencies = get_level1_dependencies(package_name)
         if package_name != get_name():
             deb_package_name = get_deb_package_name(package_name)
-            if package_in_apt_cache(deb_package_name):
-                return
+            # if package_in_apt_cache(deb_package_name):
+            #     return
 
             compressed_egg_path = find_pacakge_in_cache_dist(package_name)
             temp_dir = tempfile.gettempdir()
@@ -119,20 +131,23 @@ def build_bdist_deb():
             unzip(compressed_egg_path, temp_dir)
             with change_directory_context(extracted_egg_dir):
                 remove_pyc_files()
-                build_deb(package_name, dependecies)
+                build_deb(package_name, dependencies)
             copy_deb_to_parts(extracted_egg_dir)
-            built_packages.add(package_name)
+            built_packages.add(package_name.lower())
         else:
             build_deb(package_name, dependencies)
             copy_deb_to_parts('.')
 
         for package, dep, version_specific_dep in dependencies:
-            if not dep in built_packages:
+            if not dep.lower() in built_packages:
                 build_dependency(dep)
 
 
+    utils.download_setuptools(os.path.join('.cache', 'dist'))
+    utils.download_buildout(os.path.join('.cache', 'dist'))
     build_dependency(get_name())
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     build_bdist_deb()

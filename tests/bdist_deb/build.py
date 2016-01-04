@@ -21,7 +21,7 @@ def execute(command_line):
 def get_deb_package_name(package_name):
     PREFIX = "python-"
     package_name = "{}{}".format(PREFIX, package_name) if not package_name.startswith(PREFIX) else package_name
-    return package_name.lower()
+    return package_name.lower().replace('.', '-')
 
 def package_in_apt_cache(deb_package_name):
     return deb_package_name in execute("apt-cache search {}".format(deb_package_name)).get_stdout()
@@ -112,6 +112,7 @@ def build_bdist_deb():
         for debfile in glob.glob(os.path.join(egg_dir, 'deb_dist', '*.deb')):
             basename = os.path.basename(debfile.replace('_all', '-' + get_platform_string()))
             basename = basename.replace('_amd64', '-' + get_platform_string())
+            basename = basename.replace('_i386', '-' + get_platform_string())
             shutil.copy(debfile, os.path.join('parts', basename))
 
     def build_dependency(package_name):

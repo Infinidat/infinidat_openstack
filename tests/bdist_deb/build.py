@@ -90,6 +90,18 @@ def convert_egg_to_tar_gz(compressed_egg_path):
 def build_bdist_deb():
     built_packages = set()
 
+    def build_deb(package_name, dependencies):
+        dependecies_str = format_dependency_string(dependencies)
+        print package_name, dependecies_str
+        execute("/usr/bin/python setup.py --command-packages=stdeb.command sdist_dsc" + dependecies_str)
+        [package_dir] = [item for item in glob.glob(os.path.join('deb_dist', '*')) if os.path.isdir(item)]
+        with change_directory_context(package_dir):
+            execute("dpkg-buildpackage -b")
+
+    def copy_deb_to_parts(egg_dir):
+        for debfile in glob.glob(os.path.join(egg_dir, 'deb_dist', '*.deb')):
+            shutil.copy(debfile, 'parts')
+
     def build_dependency(package_name):
         dependencies = get_level1_dependencies(package_name)
         if package_name != get_name():
@@ -107,15 +119,12 @@ def build_bdist_deb():
             unzip(compressed_egg_path, temp_dir)
             with change_directory_context(extracted_egg_dir):
                 remove_pyc_files()
-                dependecies_str = format_dependency_string(dependencies)
-                print package_name, dependecies_str
-                execute("/usr/bin/python setup.py --command-packages=stdeb.command sdist_dsc" + dependecies_str)
-                [package_dir] = [item for item in glob.glob(os.path.join('deb_dist', '*')) if os.path.isdir(item)]
-                with change_directory_context(package_dir):
-                    execute("dpkg-buildpackage -b")
-            for debfile in glob.glob(os.path.join(extracted_egg_dir, 'deb_dist', '*.deb')):
-                shutil.copy(debfile, 'parts')
+                build_deb(package_name, dependecies)
+            copy_deb_to_parts(extracted_egg_dir)
             built_packages.add(package_name)
+        else:
+            build_deb(package_name, dependencies)
+            copy_deb_to_parts('.')
 
         for package, dep, version_specific_dep in dependencies:
             if not dep in built_packages:

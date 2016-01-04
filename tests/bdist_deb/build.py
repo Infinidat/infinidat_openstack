@@ -21,7 +21,7 @@ def execute(command_line):
 def get_deb_package_name(package_name):
     PREFIX = "python-"
     package_name = "{}{}".format(PREFIX, package_name) if not package_name.startswith(PREFIX) else package_name
-    return package_name.lower().replace('.', '-')
+    return package_name.lower()
 
 def package_in_apt_cache(deb_package_name):
     return deb_package_name in execute("apt-cache search {}".format(deb_package_name)).get_stdout()

@@ -111,7 +111,7 @@ class DevstackInstallerTestCase(InstallerBaseCase):
 
     @contextmanager
     def install_context(self, package, full_path):
-        execute_assert_success(["dpkg", "-i", full_path], shell=True)
+        execute_assert_success(["dpkg", "-i", full_path])
         try:
             yield
         finally:

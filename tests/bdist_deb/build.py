@@ -103,7 +103,7 @@ def build_bdist_deb():
         msg = "Building package {}, with dependencies: {}".format(package_name, dependencies)
         logger.info(msg)
         execute("/usr/bin/python setup.py --command-packages=stdeb.command sdist_dsc --package={}".format(get_deb_package_name(package_name)) + dependecies_str)
-        [package_dir] = [item for item in glob.glob(os.path.join('deb_dist', '*')) if os.path.isdir(item)]
+        package_dir = sorted([item for item in glob.glob(os.path.join('deb_dist', '*')) if os.path.isdir(item)])[-1]
         with change_directory_context(package_dir):
             execute("dpkg-buildpackage -b")
 

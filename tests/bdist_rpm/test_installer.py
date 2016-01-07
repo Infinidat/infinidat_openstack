@@ -10,19 +10,21 @@ class InstallerBaseCase(TestCase):
         package, full_path = self.build()
         self.addCleanup(remove, full_path)
         with self.assert_not_installed_context():
-            with self.install_context(package):
+            with self.install_context(package, full_path):
                 self.assert_package_installed(package)
                 self.assert_volume_driver_importable()
                 self.assert_commandline_tool_works()
 
     def test_package_upgrade(self):
         first, second = self.build_two_packages()
+        (first_package, first_full_path) = first
+        (second_package, second_full_path) = second
         self.assertNotEquals(first, second)
         with self.assert_not_installed_context():
-            with self.install_context(first):
-                self.assert_package_installed(first)
-                with self.upgrade_context(second):
-                    self.assert_package_installed(second)
+            with self.install_context(first_package, first_full_path):
+                self.assert_package_installed(first_package)
+                with self.upgrade_context(second_package, second_full_path):
+                    self.assert_package_installed(second_package)
                     self.assert_volume_driver_importable()
                     self.assert_commandline_tool_works()
 
@@ -108,16 +110,16 @@ class DevstackInstallerTestCase(InstallerBaseCase):
         return "python-infinidat-openstack" in execute_assert_success(["dpkg", "-l"]).get_stdout()
 
     @contextmanager
-    def install_context(self, package):
-        execute_assert_success("dpkg -i parts/*.deb", shell=True)
+    def install_context(self, package, full_path):
+        execute_assert_success(["dpkg", "-i", full_path], shell=True)
         try:
             yield
         finally:
             execute_assert_success(["dpkg", "-r", package])
 
     @contextmanager
-    def upgrade_context(self, package):
-        execute_assert_success(["dpkg", "-i", package])
+    def upgrade_context(self, full_path):
+        execute_assert_success(["dpkg", "-i", full_path])
         yield
 
     def assert_package_installed(self, package):

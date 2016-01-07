@@ -21,3 +21,11 @@ testing
   since they build the rpm which is used by the other tests.
 - If you edit anything in the code, you have to commit (not push),
   otherwise your newest code won't be built (the bdist_rpm test uses git)
+
+
+# Running DevStack on Ubuntu
+
+    jfab openstack_devstack.install:stable/kilo -H localhost
+    jfab openstack_devstack.reset_admin_password  -H localhost
+    sudo -u stack screen -r
+

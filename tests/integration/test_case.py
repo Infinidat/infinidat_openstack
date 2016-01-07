@@ -5,6 +5,7 @@ from mock import MagicMock
 from munch import Munch
 from unittest import SkipTest
 from urlparse import urlparse
+from platform import linux_distribution
 from socket import gethostname, gethostbyname
 from infi.execute import execute_assert_success, execute, execute_async, ExecutionError
 from infi.pyutils.lazy import cached_function
@@ -14,16 +15,22 @@ from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
-from tests.test_common import ensure_package_is_installed, remove_package
+from tests.test_common import ensure_package_is_installed, remove_package, is_devstack, get_admin_password
 from logging import getLogger
 logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
-VAR_LOG_MESSAGES = "/var/log/messages"
+VAR_LOG_MESSAGES = "/var/log/syslog" if "ubuntu" in linux_distribution()[0].lower() else "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+
+
+RESTART_CINDER_DEVSTACK_CMDLINE = """
+    killall "cinder-volume";
+    sudo -u stack screen -p 16 -X stuff "/usr/local/bin/cinder-volume --config-file /etc/cinder/cinder.conf & echo $! >/opt/stack/status/stack/c-vol.pid; fg || echo 'c-vol failed to start' | tee '/opt/stack/status/stack/c-vol.failure'$(printf \\\\r)"
+"""
 
 
 def print_log(logfile_path, new_data=''):
@@ -106,18 +113,19 @@ def fix_ip_addresses_in_openstack():
 def prepare_host():
     """using cached_function to make sure this is called only once"""
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
-    fix_ip_addresses_in_openstack()
+    if not is_devstack():
+        fix_ip_addresses_in_openstack()
 
 
 def get_cinder_client(host="localhost"):
     from cinderclient.v1 import client
-    return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
+    return client.Client("admin", get_admin_password(), "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
 
 
 def get_glance_client(host="localhost", token=None):
     from keystoneclient.v2_0.client import Client as KeystoneClient
     from glanceclient.client import Client as GlanceClient
-    keystone = KeystoneClient(username='admin', password='admin', tenant_name="admin",
+    keystone = KeystoneClient(username='admin', password=get_admin_password(), tenant_name="admin",
                               auth_url="http://{}:5000/v2.0/".format(host))
     endpoint = keystone.service_catalog.url_for(service_type='image', endpoint_type='publicURL')
     glance = GlanceClient("1", endpoint=endpoint, token=keystone.auth_token)
@@ -125,9 +133,13 @@ def get_glance_client(host="localhost", token=None):
 
 
 def restart_cinder(cinder_volume_only=True):
-    execute_assert_success(["openstack-service", "restart",
-                            "cinder-volume" if cinder_volume_only else "cinder"])
-    sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
+    if not is_devstack():
+        execute_assert_success(["openstack-service", "restart",
+                                "cinder-volume" if cinder_volume_only else "cinder"])
+        sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
+    else:
+        cmdline = execute_assert_success(RESTART_CINDER_DEVSTACK_CMDLINE, shell=True)
+        sleep(120)
 
 
 class NotReadyException(Exception):
@@ -308,7 +320,7 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_host(cls):
-        if not path.exists("/usr/bin/cinder"):
+        if not path.exists("/usr/bin/cinder") and not is_devstack():
             raise SkipTest("openstack not installed")
         prepare_host()
         ensure_package_is_installed()
@@ -403,10 +415,16 @@ class RealTestCaseMixin(object):
             return glance.images.create(name="cirros", is_public=True, container_format="bare", disk_format="qcow2", data=fd)
 
     def get_cirros_image(self):
+        from glanceclient.openstack.common.apiclient.exceptions import NotFound
         glance = get_glance_client()
-        image = glance.images.find(name='cirros')
-        if image.status != "active":
+        try:
+            image = glance.images.find(name='cirros')
+            found = True
+        except NotFound:
+            found = False
+        if found and image.status != "active":
             image.delete()
+        if not found or image.status != "active":
             image = self._recreate_cirros_image(glance)
         return image
 
@@ -601,6 +619,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def setUpClass(cls):
         super(OpenStackISCSITestCase, cls).setUpClass()
         cls.selective_skip()
+        if is_devstack():
+            raise SkipTest("Not checking iSCSI on devstack for now")
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()

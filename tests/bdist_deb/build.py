@@ -151,4 +151,5 @@ def build_bdist_deb():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
+    os.system("projector devenv build --use-isolated-python")
     build_bdist_deb()

@@ -4,12 +4,12 @@ from unittest import SkipTest
 from infi.unittest import parameters
 from infi.pyutils.contexts import contextmanager
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
+from tests.test_common import get_admin_password
 from cinderclient.v2.consistencygroups import ConsistencygroupManager
-
 
 def get_cinder_v2_client(host="localhost"):
     from cinderclient.v2 import client
-    return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host))
+    return client.Client("admin", get_admin_password(), "admin", "http://{}:5000/v2.0/".format(host))
 
 
 class CGRealTestCaseMixin(test_case.RealTestCaseMixin):

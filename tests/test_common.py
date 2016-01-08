@@ -11,7 +11,7 @@ def is_devstack():
     return path.exists('/opt/stack')
 
 def get_admin_password():
-    return "stack" if is_devstack() else admin
+    return "stack" if is_devstack() else "admin"
 
 def install_package():
     if not is_devstack():

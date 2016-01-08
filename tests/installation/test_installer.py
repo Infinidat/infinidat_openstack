@@ -73,7 +73,7 @@ class RPMTestCase(TestCase, InstallerMixin):
         reload(infinidat_openstack.__version__)
         short_version = shorten_version(infinidat_openstack.__version__.__version__)
         all_packages = glob("dist/*rpm")
-        res = glob("dist/infinidat_openstack-{0}-*.rpm".format(infinidat_openstack.__version__.__version__))[0]
+        res = glob("dist/infinidat_openstack-{0}-*.rpm".format(short_version))[0]
         return res, res
 
     def is_product_installed(self):

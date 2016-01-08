@@ -72,6 +72,7 @@ class RPMTestCase(TestCase, InstallerMixin):
         execute_assert_success(["bin/python", "tests/bdist_rpm/build.py"])
         reload(infinidat_openstack.__version__)
         short_version = shorten_version(infinidat_openstack.__version__.__version__)
+        all_packages = glob("dist/*rpm")
         res = glob("dist/infinidat_openstack-{0}-*.rpm".format(infinidat_openstack.__version__.__version__))[0]
         return res, res
 
@@ -113,6 +114,7 @@ class DEBTEstCase(TestCase, InstallerMixin):
         import infinidat_openstack.__version__
         execute_assert_success("PATH=/usr/bin:$PATH bin/python tests/bdist_deb/build.py", shell=True)
         reload(infinidat_openstack.__version__)
+        all_packages = glob("parts/*deb")
         res = glob("parts/python-infinidat-openstack_{0}-*.deb".format(infinidat_openstack.__version__.__version__))[0]
         return res.split('/')[1].split('_')[0], res
 

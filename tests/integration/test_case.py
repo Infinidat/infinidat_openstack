@@ -618,7 +618,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackISCSITestCase, cls).setUpClass()
-        cls.selective_skip()
         if is_devstack():
             raise SkipTest("Not checking iSCSI on devstack for now")
         cls.install_iscsi_manager()
@@ -644,17 +643,11 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def _install_scst_for_current_kernel_or_skip_test(cls):
-        kernel_version = execute_assert_success(["uname", "-r"]).get_stdout().strip()
-        package = "scst-{}.x86_64".format(kernel_version)
-        try:
-            execute_assert_success(["yum", "install", "-y", package])
-        except ExecutionError, error:
-            logger.debug("yum install package {} failed, below is stdout and stderr".format(package))
-            logger.debug(error.result.get_stdout())
-            logger.debug(error.result.get_stderr())
-            if "No package" in error.result.get_stderr() + error.result.get_stdout():
-                raise SkipTest("no scst package for kernel {}".format(kernel_version))
-            raise
+        execute(["yum install -y svn || apt-get install -y svn"], shell=True)
+        execute(["yum install -y kernel-devel-`uname -r` || true"], shell=True)
+        execute(["svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk"], shell=True)
+        execute(["cd scst-trunk/scst && make && make install"], shell=True)
+        execute(["cd scst-trunk/scstadmin && make && make install"], shell=True)
 
     @classmethod
     def install_iscsi_manager(cls):
@@ -666,7 +659,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         cls._install_scst_for_current_kernel_or_skip_test()
         execute_assert_success(["yum", "makecache"])
         logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
-        logger.debug(execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"]).get_stdout())
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
             execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])

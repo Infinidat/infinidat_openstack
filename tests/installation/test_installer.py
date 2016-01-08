@@ -13,7 +13,7 @@ def shorten_version(long_version):
 class InstallerMixin(object):
     def test_package_installation(self):
         package = self.build()
-        self.addCleanup(remove, full_path)
+        self.addCleanup(remove, package)
         with self.assert_not_installed_context():
             with self.install_context(package):
                 self.assert_package_installed(package)
@@ -22,14 +22,12 @@ class InstallerMixin(object):
 
     def test_package_upgrade(self):
         first, second = self.build_two_packages()
-        (first_package, first_full_path) = first
-        (second_package, second_full_path) = second
         self.assertNotEquals(first, second)
         with self.assert_not_installed_context():
-            with self.install_context(first_package, first_full_path):
-                self.assert_package_installed(first_package)
-                with self.upgrade_context(second_package, second_full_path):
-                    self.assert_package_installed(second_package)
+            with self.install_context(first):
+                self.assert_package_installed(first)
+                with self.upgrade_context(second):
+                    self.assert_package_installed(second)
                     self.assert_volume_driver_importable()
                     self.assert_commandline_tool_works()
 
@@ -136,4 +134,4 @@ class DEBTEstCase(TestCase, InstallerMixin):
 
     def assert_package_installed(self, package):
         result = execute_assert_success(["dpkg", "-l", "python-infinidat-openstack"]).get_stdout()
-        self.assertIn(package, result)
+        self.assertIn(package.split('_')[0].split('-')[0], result)

@@ -71,7 +71,8 @@ class RPMTestCase(TestCase, InstallerMixin):
         import infinidat_openstack.__version__
         execute_assert_success(["bin/python", "tests/bdist_rpm/build.py"])
         reload(infinidat_openstack.__version__)
-        res = glob("parts/python-infinidat-openstack_{0}-*.deb".format(infinidat_openstack.__version__.__version__))[0]
+        short_version = shorten_version(infinidat_openstack.__version__.__version__)
+        res = glob("dist/infinidat_openstack-{0}-*.rpm".format(infinidat_openstack.__version__.__version__))[0]
         return res, res
 
     def is_product_installed(self):

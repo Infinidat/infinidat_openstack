@@ -13,7 +13,6 @@ def shorten_version(long_version):
 class InstallerMixin(object):
     def test_package_installation(self):
         package = self.build()
-        self.addCleanup(remove, package)
         with self.assert_not_installed_context():
             with self.install_context(package):
                 self.assert_package_installed(package)

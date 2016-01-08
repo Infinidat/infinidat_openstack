@@ -2,10 +2,10 @@ from os import remove, path
 from unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
 from infi.execute import execute_assert_success
+from infi.os_info import get_platform_string
 
 
 class InstallerBaseCase(TestCase):
-
     def test_package_installation(self):
         package, full_path = self.build()
         self.addCleanup(remove, full_path)
@@ -50,11 +50,14 @@ class InstallerBaseCase(TestCase):
         second = self.build()
         return first, second
 
-class StandardInstallerTestCase(InstallerBaseCase):
+
+class RPMTestCase(InstallerBaseCase):
     @classmethod
     def setUpClass(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
+        if 'ubuntu' in get_platform_string():
+            raise SkipTest("not ubuntu")
         execute_assert_success(["yum", "install", "-y", "python-devel"])
         execute_assert_success(["rm", "-rf", "dist"])
 
@@ -88,11 +91,13 @@ class StandardInstallerTestCase(InstallerBaseCase):
         self.assertIn(package.split("-")[1], result.get_stdout().splitlines())
 
 
-class DevstackInstallerTestCase(InstallerBaseCase):
+class DEBTEstCase(InstallerBaseCase):
     @classmethod
     def setUpClass(cls):
         if not path.exists("/opt/stack"):
             raise SkipTest("devstack not installed")
+        if 'centos' not in get_platform_string() and 'redhat' not in get_platform_string()():
+            raise SkipTest("not centos or redhat")
         execute_assert_success("apt-get install -y python-all python-all-dev python-setuptools debhelper".split(' '))
         execute_assert_success("/usr/bin/easy_install -U setuptools".split(' '))
         execute_assert_success("/usr/bin/easy_install -U stdeb".split(' '))

@@ -5,7 +5,7 @@ from infi.execute import execute_assert_success
 from infi.os_info import get_platform_string
 
 
-class InstallerBaseCase(TestCase):
+class InstallerMixin(object):
     def test_package_installation(self):
         package, full_path = self.build()
         self.addCleanup(remove, full_path)
@@ -51,7 +51,7 @@ class InstallerBaseCase(TestCase):
         return first, second
 
 
-class RPMTestCase(InstallerBaseCase):
+class RPMTestCase(TestCase, InstallerMixin):
     @classmethod
     def setUpClass(cls):
         if not path.exists("/usr/bin/cinder"):
@@ -91,7 +91,7 @@ class RPMTestCase(InstallerBaseCase):
         self.assertIn(package.split("-")[1], result.get_stdout().splitlines())
 
 
-class DEBTEstCase(InstallerBaseCase):
+class DEBTEstCase(TestCase, InstallerMixin):
     @classmethod
     def setUpClass(cls):
         if not path.exists("/opt/stack"):

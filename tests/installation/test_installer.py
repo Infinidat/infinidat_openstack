@@ -12,10 +12,10 @@ def shorten_version(long_version):
 
 class InstallerMixin(object):
     def test_package_installation(self):
-        package, full_path = self.build()
+        package = self.build()
         self.addCleanup(remove, full_path)
         with self.assert_not_installed_context():
-            with self.install_context(package, full_path):
+            with self.install_context(package):
                 self.assert_package_installed(package)
                 self.assert_volume_driver_importable()
                 self.assert_commandline_tool_works()
@@ -74,7 +74,7 @@ class RPMTestCase(TestCase, InstallerMixin):
         short_version = shorten_version(infinidat_openstack.__version__.__version__)
         all_packages = glob("dist/*rpm")
         res = glob("dist/infinidat_openstack-{0}-*.rpm".format(short_version))[0]
-        return res, res
+        return res
 
     def is_product_installed(self):
         return "infinidat_openstack" in execute_assert_success(["rpm", "-qa"]).get_stdout()
@@ -116,18 +116,18 @@ class DEBTEstCase(TestCase, InstallerMixin):
         reload(infinidat_openstack.__version__)
         all_packages = glob("parts/*deb")
         res = glob("parts/python-infinidat-openstack_{0}-*.deb".format(infinidat_openstack.__version__.__version__))[0]
-        return res.split('/')[1].split('_')[0], res
+        return res
 
     def is_product_installed(self):
         return "python-infinidat-openstack" in execute_assert_success(["dpkg", "-l"]).get_stdout()
 
     @contextmanager
-    def install_context(self, package, full_path):
-        execute_assert_success(["dpkg", "-i", full_path])
+    def install_context(self, package):
+        execute_assert_success(["dpkg", "-i", package])
         try:
             yield
         finally:
-            execute_assert_success(["dpkg", "-r", package])
+            execute_assert_success(["dpkg", "-r", "python-infinidat-openstack"])
 
     @contextmanager
     def upgrade_context(self, full_path):

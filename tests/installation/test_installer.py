@@ -5,6 +5,11 @@ from infi.execute import execute_assert_success
 from infi.os_info import get_platform_string
 
 
+def shorten_version(long_version):
+    from infi.os_info import shorten_version_string
+    return shorten_version_string(long_version)
+
+
 class InstallerMixin(object):
     def test_package_installation(self):
         package, full_path = self.build()
@@ -62,7 +67,6 @@ class RPMTestCase(TestCase, InstallerMixin):
         execute_assert_success(["rm", "-rf", "dist"])
 
     def build(self):
-        from build import shorten_version
         from glob import glob
         import infinidat_openstack.__version__
         execute_assert_success(["bin/python", "tests/bdist_rpm/build.py"])

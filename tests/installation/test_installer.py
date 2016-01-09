@@ -121,7 +121,7 @@ class DEBTestCase(TestCase, InstallerMixin):
     @contextmanager
     def install_context(self, package):
         from glob import glob
-        non_infinidat_packages = [i for i in glob("parts/*deb") in "python-infinidat-openstack" not in i]
+        non_infinidat_packages = [i for i in glob("parts/*deb") if "python-infinidat-openstack" not in i]
         execute_assert_success(["dpkg", "-i", package] + non_infinidat_packages)
         try:
             yield

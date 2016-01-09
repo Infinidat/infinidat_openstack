@@ -190,7 +190,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
-        except ObjectNotFound:
+        except (ObjectNotFound, exception.InvalidInput):
             if not self.configuration.infinidat_allow_pool_not_found:
                 raise
             LOG.info("InfiniBox pool not found, but infinidat_allow_pool_not_found is set")
@@ -576,7 +576,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
             data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
-        except ObjectNotFound:
+        except (ObjectNotFound, exception.InvalidInput):
             data['total_capaceity_gb'] = 0
             data['free_capacity_gb'] = 0
 

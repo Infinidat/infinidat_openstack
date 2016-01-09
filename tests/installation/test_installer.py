@@ -1,4 +1,4 @@
-from os import remove, path
+from os import path
 from unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
 from infi.execute import execute_assert_success

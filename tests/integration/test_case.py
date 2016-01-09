@@ -643,11 +643,11 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def _install_scst_for_current_kernel_or_skip_test(cls):
-        execute(["yum install -y svn || apt-get install -y svn"], shell=True)
-        execute(["yum install -y kernel-devel-`uname -r` || true"], shell=True)
-        execute(["svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk"], shell=True)
-        execute(["cd scst-trunk/scst && make && make install"], shell=True)
-        execute(["cd scst-trunk/scstadmin && make && make install"], shell=True)
+        execute_assert_success("yum install -y svn || apt-get install -y svn", shell=True)
+        execute_assert_success("yum install -y kernel-devel-`uname -r` || true", shell=True)
+        execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)
+        execute_assert_success("cd scst-trunk/scst && make && make install", shell=True)
+        execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
 
     @classmethod
     def install_iscsi_manager(cls):
@@ -655,7 +655,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         from os import remove
         for filepath in list(glob("/etc/yum.repos.d/*iscsi*")):
             remove(filepath)
-        execute(["curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -"], shell=True)
+        execute("curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -", shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
         execute_assert_success(["yum", "makecache"])
         logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())

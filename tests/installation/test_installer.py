@@ -58,7 +58,7 @@ class RPMTestCase(TestCase, InstallerMixin):
     def setUpClass(cls):
         if not path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
-        if 'ubuntu' in get_platform_string():
+        if 'centos' not in get_platform_string() and 'redhat' not in get_platform_string():
             raise SkipTest("not centos or redhat")
         execute_assert_success(["yum", "install", "-y", "python-devel"])
         execute_assert_success(["rm", "-rf", "dist"])
@@ -99,7 +99,7 @@ class DEBTestCase(TestCase, InstallerMixin):
     def setUpClass(cls):
         if not path.exists("/opt/stack"):
             raise SkipTest("devstack not installed")
-        if 'centos' not in get_platform_string() and 'redhat' not in get_platform_string():
+        if 'ubuntu' not in get_platform_string():
             raise SkipTest("not ubuntu")
         execute_assert_success("apt-get install -y python-all python-all-dev python-setuptools debhelper".split(' '))
         execute_assert_success("/usr/bin/easy_install -U setuptools".split(' '))

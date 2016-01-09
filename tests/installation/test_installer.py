@@ -135,4 +135,4 @@ class DEBTestCase(TestCase, InstallerMixin):
 
     def assert_package_installed(self, package):
         result = execute_assert_success(["dpkg", "-l", "python-infinidat-openstack"]).get_stdout()
-        self.assertIn(package.split('_')[0].split('-')[0], result)
+        self.assertIn(path.basename(package).split('_')[0].split('-')[0], result)

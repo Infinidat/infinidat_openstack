@@ -9,6 +9,10 @@ INFINIOPENSTACK_EXECUTABLE = "/usr/bin/infini-openstack"
 CINDER_CONFIG_FILE = "/etc/cinder/cinder.conf"
 
 
+def is_devstack():
+    return path.exists('/opt/stack')
+
+
 def get_admin_password():
     return "stack" if 'ubuntu' in get_platform_string() else "admin"
 

@@ -7,6 +7,7 @@ from unittest import SkipTest
 from urlparse import urlparse
 from platform import linux_distribution
 from socket import gethostname, gethostbyname
+from infi.os_info import get_platform_string
 from infi.execute import execute_assert_success, execute, execute_async, ExecutionError
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
@@ -618,8 +619,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackISCSITestCase, cls).setUpClass()
-        if is_devstack():
-            raise SkipTest("Not checking iSCSI on devstack for now")
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
@@ -647,8 +646,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r", shell=True)
         execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)
         execute_assert_success("cd scst-trunk/scst && make && make install && modprobe scst && modprobe scst_raid scst_disk", shell=True)
-        # modprobe iscsi-scst doesn't work on ubuntu, and if using insmod then scstd fails to connect to unix domain socket
-        execute_assert_success("cd scst-trunk/iscsi-scst && make && make install && modprobe iscsi-scst && iscsi-scstd", shell=True)
+        execute_assert_success("cd scst-trunk/iscsi-scst && make && make install")
+        if 'ubuntu' in get_platform_string():
+            execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
+        execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
         execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
 
     @classmethod

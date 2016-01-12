@@ -443,6 +443,10 @@ class MockTestCaseMixin(object):
     volumes = {}
 
     @classmethod
+    def selective_skip(cls):
+        pass
+
+    @classmethod
     def setup_host(cls):
         cls.smock = HostMock()
         cls.smock.get_inventory().add_initiator()

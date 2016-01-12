@@ -157,6 +157,7 @@ class OpenStackTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
+        cls.selective_skip()
         cls.setup_host()
         cls.setup_infinibox()
         cls.zone_localhost_with_infinibox()
@@ -349,6 +350,12 @@ class RealTestCaseMixin(object):
             cls.system.release()
         except:
             pass
+
+    @classmethod
+    def selective_skip(cls):
+        import os
+        if hasattr(cls, 'ENV_VAR_TO_SKIP') and os.environ.get(cls.ENV_VAR_TO_SKIP, ""):
+            raise SkipTest("skipping this test case, env var {} is set".format(cls.ENV_VAR_TO_SKIP))
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick', total_pools_count=1, volume_backend_name=None):
@@ -600,7 +607,7 @@ class MockTestCaseMixin(object):
 
 
 class OpenStackISCSITestCase(OpenStackTestCase):
-    PLATFORM_TO_SKIP = "centos-6"
+    ENV_VAR_TO_SKIP = "SKIP_ISCSI_TESTS"
     ISCSI_GW_SLEEP_TIME = 1
     prefer_fc = False
 
@@ -725,13 +732,9 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             node_name = open(os.path.join(FC_HOST_DIR, virtual_fc_host, 'node_name')).read().strip().strip('0x')
             open(vport_delete_file_name,'w').write('{}:{}'.format(node_name, port_name))
 
-    @classmethod
-    def selective_skip(cls):
-        import os
-        if cls.PLATFORM_TO_SKIP in os.environ.get("NODE_LABELS", ""):
-            raise SkipTest("skipping this test case on this platform")
 
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
+    ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
     def get_connector(self):
         from infi.hbaapi import get_ports_collection
         fc_ports = get_ports_collection().get_ports()
@@ -744,7 +747,6 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
 
 
 class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
-    PLATFORM_TO_SKIP = "redhat-7"
 
     @classmethod
     def start_iscsi_manager(cls):

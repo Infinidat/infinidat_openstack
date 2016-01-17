@@ -185,6 +185,15 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
+    def wait_for_type_creation(self, pool, timeout=60):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            volume_type = self.get_infinidat_volume_type(pool)
+            if volume_type not in [t.name for t in self.get_cinder_client().volume_types.findall()]:
+                raise NotReadyException(cinder_object.id, cinder_object.status)
+        poll()
+        sleep(30) # HACK: The above logic doesn't work in test_create_volume_different_backend_name. so adding it for everyone just in case
+
     @classmethod
     def wait_for_removal_from_consistencygroup(cls, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
@@ -396,6 +405,7 @@ class RealTestCaseMixin(object):
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
+        self.wait_for_type_creation(pool)
         with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:

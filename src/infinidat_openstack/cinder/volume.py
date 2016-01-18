@@ -17,10 +17,9 @@ except (ImportError, NameError):
     try:
         from oslo_log import log as logging
     except (ImportError, NameError):
-        from .mock import logging
+        import logging
 
 from contextlib import contextmanager
-from functools import wraps
 from capacity import GiB
 from time import sleep, time
 from infi.pyutils.decorators import wraps
@@ -72,7 +71,7 @@ CONF.register_opts(san_opts)
 
 SYSTEM_METADATA_VALUE = 'openstack'
 STATS_VENDOR = 'Infinidat'
-STATS_PROTOCOL = 'iSCSI/FC' # Nothing is actually done with this field
+STATS_PROTOCOL = 'iSCSI/FC'  # Nothing is actually done with this field
 INFINIHOST_VERSION_FILE = "/opt/infinidat/host-power-tools/src/infi/vendata/powertools/__version__.py"
 
 
@@ -158,7 +157,7 @@ def get_powertools_version():
 
 
 class InfiniboxVolumeDriver(driver.VolumeDriver):
-    VERSION = '1.0'
+    VERSION = '1.1'
 
     def __init__(self, *args, **kwargs):
         super(InfiniboxVolumeDriver, self).__init__(*args, **kwargs)
@@ -191,7 +190,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
-        except ObjectNotFound:
+        except (ObjectNotFound, exception.InvalidInput):
             if not self.configuration.infinidat_allow_pool_not_found:
                 raise
             LOG.info("InfiniBox pool not found, but infinidat_allow_pool_not_found is set")
@@ -206,7 +205,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def create_export(self, context, volume):
+    def create_export(self, context, volume, connector=None):
         """Exports the volume."""
         pass
 
@@ -221,11 +220,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def check_for_setup_error(self):
         """Returns an error if prerequisites aren't met."""
         if not self.configuration.san_password:
-            raise exception.InvalidInput(reason=_('Specify san_password'))
+            raise exception.InvalidInput(reason=translate('Specify san_password'))
 
         # The san_ip must always be set, because we use it for the target
         if not self.configuration.san_ip:
-            raise exception.InvalidInput(reason=_("san_ip must be set"))
+            raise exception.InvalidInput(reason=translate("san_ip must be set"))
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -243,7 +242,6 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             infinidat_volume,
             cinder_volume,
             cinder_cg=cinder_cg)
-
 
     def _purge_infinidat_volume(self, infinidat_volume):
         if infinidat_volume.is_mapped():
@@ -309,7 +307,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def initialize_connection(self, cinder_volume, connector):
+    def initialize_connection(self, cinder_volume, connector, initiator_data=None):
         # connector is a dict containing information about the connection. For example:
         # connector={u'ip': u'172.16.86.169', u'host': u'openstack01', u'wwnns': [u'20000000c99115ea'],
         #            u'initiator': u'iqn.1993-08.org.debian:01:1cef2344a325', u'wwpns': [u'10000000c99115ea']}
@@ -334,7 +332,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _initialize_connection__iscsi(self, cinder_volume, connector):
         infinidat_volume = self._find_volume(cinder_volume)
-        host = self._wait_for_iscsi_host(connector[u'initiator']) # raises error after timeout
+        host = self._wait_for_iscsi_host(connector[u'initiator'])  # raises error after timeout
         self._set_host_metadata(host)
 
         # we would like to compare before/after the map to make sure at least one target is aware of the map
@@ -376,7 +374,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def terminate_connection(self, cinder_volume, connector, force=False):
+    def terminate_connection(self, cinder_volume, connector, force=False, **kwargs):
         self._assert_connector(connector)
         methods = dict(fc=self._terminate_connection__fc,
                        iscsi=self._terminate_connection__iscsi)
@@ -397,7 +395,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     def _terminate_connection__iscsi(self, cinder_volume, connector, force=False):
         infinidat_volume = self._find_volume(cinder_volume)
         try:
-            host = self._wait_for_iscsi_host(connector['initiator']) # raises error after timeout
+            host = self._wait_for_iscsi_host(connector['initiator'])  # raises error after timeout
         except ISCSIGWTimeoutException:
             return
         self._set_host_metadata(host)
@@ -442,7 +440,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         tgt_infinidat_volume = snapshot.create_clone(name=self._create_volume_name(tgt_cinder_volume))
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
             cinder_cg = tgt_cinder_volume.consistencygroup
-            self._add_volume_to_cg(infinidat_volume, cinder_cg)
+            self._add_volume_to_cg(tgt_infinidat_volume, cinder_cg)
         else:
             cinder_cg = None
         self._set_volume_or_snapshot_metadata(
@@ -496,7 +494,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def delete_consistencygroup(self, context, cinder_cg):
+    def delete_consistencygroup(self, context, cinder_cg, members=None):
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             infinidat_cg = self._find_cg(cinder_cg)
@@ -505,13 +503,14 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             return
         infinidat_cg.delete()
 
-        memebers = self.db.volume_get_all_by_group(context, cinder_cg.id)
+        # 'members' (volumes) is passed as a parameter in liberty and above but not on kilo
+        if members is None:
+            memebers = self.db.volume_get_all_by_group(context, cinder_cg.id)
         for cinder_volume in memebers:
             self.delete_volume(cinder_volume)
             cinder_volume.status = 'deleted'
 
         return {'status': cinder_cg['status']}, memebers
-
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
@@ -544,8 +543,10 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     @logbook_compat
     @infinisdk_to_cinder_exceptions
-    def delete_cgsnapshot(self, context, cgsnapshot):
-        members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
+    def delete_cgsnapshot(self, context, cgsnapshot, members=None):
+        # 'members' (snapshots) is passed as a parameter in liberty and above but not on kilo
+        if members is None:
+            members = self.db.snapshot_get_all_for_cgsnapshot(context, cgsnapshot.id)
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             # This cgsanpshot is actualy a consistency group object in the system
@@ -575,7 +576,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         try:
             data['total_capacity_gb'] = self._get_pool().get_physical_capacity() / GiB
             data['free_capacity_gb'] = self._get_pool().get_free_physical_capacity() / GiB
-        except ObjectNotFound:
+        except (ObjectNotFound, exception.InvalidInput):
             data['total_capaceity_gb'] = 0
             data['free_capacity_gb'] = 0
 
@@ -605,16 +606,15 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
     def _find_cgsnap(self, cinder_cgsnap):
         cgsnap = self.system.cons_groups.get(name=self._create_cgsnapshot_name(cinder_cgsnap))
-        assert cgsnap.is_snapgroup() # Just making sure since these are actualy cg objects
+        assert cgsnap.is_snapgroup()  # Just making sure since these are actualy cg objects
         return cgsnap
-
 
     def _add_volume_to_cg(self, infinidat_volume, cinder_cg):
         from infinisdk.core.exceptions import ObjectNotFound
         try:
             infinidat_cg = self._find_cg(cinder_cg)
         except ObjectNotFound:
-            LOG.info("create_volume: consistency group {0!r} not found in InfiniBox, not adding volume {0!r} to the group.".format(cinder_cg, cinder_volume))
+            LOG.info("create_volume: consistency group {0!r} not found in InfiniBox, not adding volume {0!r} to the group.".format(cinder_cg, infinidat_volume))
         else:
             infinidat_cg.add_member(infinidat_volume)
 
@@ -691,8 +691,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         obj.set_metadata_from_dict(metadata)
 
     def _assert_connector(self, connector):
-        if ((not u'wwpns' in connector or not connector[u'wwpns']) and
-            (not u'initiator' in connector or not connector[u'initiator']) ):
+        if ((u'wwpns' not in connector or not connector[u'wwpns']) and
+            (u'initiator' not in connector or not connector[u'initiator'])):
             LOG.warn("no WWPN or iSCSI initiator was provided in connector: {0!r}".format(connector))
             raise exception.Invalid(translate('No WWPN or iSCSI initiator was received'))
 
@@ -702,7 +702,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         LOG.info("attempting to flush caches for {0!r}".format(attach_info))
         fd = os.open(attach_info['device']['path'], os.O_RDONLY)
         try:
-            ioctl(fd, 4705) # BLKFLSBUF
+            ioctl(fd, 4705)  # BLKFLSBUF
         finally:
             os.close(fd)
         self._sleep_after_sync()
@@ -723,9 +723,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # http://blogs.gnome.org/cneumair/2006/02/11/ioctl-fsync-how-to-flush-block-device-buffers
         # http://stackoverflow.com/questions/9551838/how-to-purge-disk-i-o-caches-on-linux
         try:
-            # commit b868ae707f9ecbe254101e21d9d7ffa0b05b17d1 changed the intergace for _detach_volume
+            # commit b868ae707f9ecbe254101e21d9d7ffa0b05b17d1 changed the interface for _detach_volume
             # we need the attach_info instance, so we use this hack
-            from .getcallargs import getcallargs # new in Python-2.7, we bundled the function for Python-2.6
+            from .getcallargs import getcallargs  # new in Python-2.7, we bundled the function for Python-2.6
             attach_info = getcallargs(super(InfiniboxVolumeDriver, self)._detach_volume, *args, **kwargs)['attach_info']
             self._flush_caches_for_specific_device(attach_info)
         except:

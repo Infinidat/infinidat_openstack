@@ -32,13 +32,13 @@ import docopt
 import sys
 import os
 import warnings
-warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__() # sentinels has deprecation warning
+warnings.catch_warnings(warnings.simplefilter("ignore")).__enter__()  # sentinels has deprecation warning
 with warnings.catch_warnings():
-    import infinisdk # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
+    import infinisdk  # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
 CONFIGURATION_MODIFYING_KWARGS = ("set", "remove", "enable", "disable", "update", "rename")
-DONE_MESSAGE = "done, restarting cinder-volume service is requires for changes to take effect"
+DONE_MESSAGE = "done, please restart cinder-volume service for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TRACEBACK_FILE = sys.stderr
 TABLE_HEADER = ["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"]
@@ -72,11 +72,10 @@ def system_list(config_parser):
 
 def parse_environment(text):
     """:returns: a 4tuple (username, password, project, url"""
-    return_value = []
     items = [(line.split("=")[0].split()[1], line.split("=")[1])
             for line in text.splitlines()
             if "=" in line and line.startswith("export ")]
-    env = dict(items) # no dict comprehension in Python-2.6
+    env = dict(items)  # no dict comprehension in Python-2.6
     return env["OS_USERNAME"], env["OS_PASSWORD"], env["OS_TENANT_NAME"], env["OS_AUTH_URL"]
 
 
@@ -100,8 +99,8 @@ def assert_rc_file_exists(config_file):
 
 
 def get_infinisdk_for_system(system):
-    return get_infinisdk_from_arguments({'<management-address>':system['address'], '<username>':system['username'],
-                                        '<password>':system['password']})
+    return get_infinisdk_from_arguments({'<management-address>': system['address'], '<username>': system['username'],
+                                        '<password>': system['password']})
 
 
 def get_infinisdk_from_arguments(arguments):
@@ -116,6 +115,10 @@ def get_infinisdk_from_arguments(arguments):
 def handle_commands(arguments, config_file):
     from . import config
     from .exceptions import UserException
+    def print_done_message(should_restart):
+        msg = DONE_MESSAGE if should_restart else DONE_NO_RESTART_MESSAGE
+        _print(msg, sys.stderr)
+
     any_modyfing_kwargs = any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_KWARGS)
     write_on_exit = arguments.get("--commit") and any_modyfing_kwargs
     if any_modyfing_kwargs and not arguments.get("--commit"):
@@ -143,7 +146,8 @@ def handle_commands(arguments, config_file):
             if write_on_exit:
                 _update_cg_policy()
                 config.update_volume_type(cinder_client, key, get_infinisdk_from_arguments(arguments).get_name(), pool_name)
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
+
         elif arguments['remove']:
             if system is None:
                 _print("failed to remove '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -152,7 +156,7 @@ def handle_commands(arguments, config_file):
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
             config.remove(config_parser, system['key'])
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['enable']:
             if system is None:
                 _print("failed to enable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -162,7 +166,7 @@ def handle_commands(arguments, config_file):
             pool = infinisdk.objects.pools.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['update']:
             if arguments["all"]:
                 for _system in config.get_systems(config_parser):
@@ -176,7 +180,7 @@ def handle_commands(arguments, config_file):
                 infinisdk = get_infinisdk_for_system(system)
                 pool = infinisdk.pools.get(id=system['pool_id'])
                 config.update_volume_type(cinder_client, system['key'], infinisdk.get_name(), pool.get_name())
-            _print(DONE_NO_RESTART_MESSAGE, sys.stderr)
+            print_done_message(should_restart=False)
         elif arguments['disable']:
             if system is None:
                 _print("failed to disable '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -184,7 +188,7 @@ def handle_commands(arguments, config_file):
             if write_on_exit:
                 config.delete_volume_type(cinder_client, system['key'])
             config.disable(config_parser, system['key'])
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
         elif arguments['rename']:
             if system is None:
                 _print("failed to rename '[InfiniBox] {0}/{1}', not found".format(address, pool_id), sys.stderr)
@@ -195,7 +199,7 @@ def handle_commands(arguments, config_file):
             pool = infinisdk.objects.pools.get(id=pool_id)
             if write_on_exit:
                 config.update_volume_type(cinder_client, new_backend_name, infinisdk.get_name(), pool.get_name())
-            _print(DONE_MESSAGE, sys.stderr)
+            print_done_message(write_on_exit)
 
 
 def _print(text, stream=sys.stdout):
@@ -234,10 +238,10 @@ def main(argv=sys.argv[1:]):
             return handle_commands(arguments, config_file)
         except SystemExit:
             raise
-        except APICommandFailed, error:
+        except APICommandFailed as error:
             _print("InfiniBox API failed: {0}".format(error.message), sys.stderr)
             raise SystemExit(1)
-        except UserException, error:
+        except UserException as error:
             _print(error.message or error, sys.stderr)
             raise SystemExit(1)
         except:

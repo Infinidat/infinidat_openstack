@@ -5,7 +5,9 @@ from mock import MagicMock
 from munch import Munch
 from unittest import SkipTest
 from urlparse import urlparse
+from platform import linux_distribution
 from socket import gethostname, gethostbyname
+from infi.os_info import get_platform_string
 from infi.execute import execute_assert_success, execute, execute_async, ExecutionError
 from infi.pyutils.lazy import cached_function
 from infi.pyutils.contexts import contextmanager
@@ -14,16 +16,22 @@ from infi.vendata.integration_tests import TestCase
 from infi.vendata.smock import HostMock
 from infinidat_openstack.cinder.volume import InfiniboxVolumeDriver, volume_opts
 from infinidat_openstack import config, scripts
-from tests.test_common import ensure_package_is_installed, remove_package
+from tests.test_common import ensure_package_is_installed, remove_package, is_devstack, get_admin_password
 from logging import getLogger
 logger = getLogger(__name__)
 
 
 CINDER_LOGDIR = "/var/log/cinder"
-VAR_LOG_MESSAGES = "/var/log/messages"
+VAR_LOG_MESSAGES = "/var/log/syslog" if "ubuntu" in linux_distribution()[0].lower() else "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+
+
+RESTART_CINDER_DEVSTACK_CMDLINE = """
+    killall "cinder-volume";
+    sudo -u stack screen -p 16 -X stuff "/usr/local/bin/cinder-volume --config-file /etc/cinder/cinder.conf & echo $! >/opt/stack/status/stack/c-vol.pid; fg || echo 'c-vol failed to start' | tee '/opt/stack/status/stack/c-vol.failure'$(printf \\\\r)"
+"""
 
 
 def print_log(logfile_path, new_data=''):
@@ -106,18 +114,19 @@ def fix_ip_addresses_in_openstack():
 def prepare_host():
     """using cached_function to make sure this is called only once"""
     execute(["bin/infinihost", "settings", "check", "--auto-fix"])
-    fix_ip_addresses_in_openstack()
+    if not is_devstack():
+        fix_ip_addresses_in_openstack()
 
 
 def get_cinder_client(host="localhost"):
     from cinderclient.v1 import client
-    return client.Client("admin", "admin", "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
+    return client.Client("admin", get_admin_password(), "admin", "http://{}:5000/v2.0/".format(host), service_type="volume")
 
 
 def get_glance_client(host="localhost", token=None):
     from keystoneclient.v2_0.client import Client as KeystoneClient
     from glanceclient.client import Client as GlanceClient
-    keystone = KeystoneClient(username='admin', password='admin', tenant_name="admin",
+    keystone = KeystoneClient(username='admin', password=get_admin_password(), tenant_name="admin",
                               auth_url="http://{}:5000/v2.0/".format(host))
     endpoint = keystone.service_catalog.url_for(service_type='image', endpoint_type='publicURL')
     glance = GlanceClient("1", endpoint=endpoint, token=keystone.auth_token)
@@ -125,9 +134,13 @@ def get_glance_client(host="localhost", token=None):
 
 
 def restart_cinder(cinder_volume_only=True):
-    execute_assert_success(["openstack-service", "restart",
-                            "cinder-volume" if cinder_volume_only else "cinder"])
-    sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
+    if not is_devstack():
+        execute_assert_success(["openstack-service", "restart",
+                                "cinder-volume" if cinder_volume_only else "cinder"])
+        sleep(10 if cinder_volume_only else 60) # give time for the volume drive to come up, no APIs to checking this
+    else:
+        cmdline = execute_assert_success(RESTART_CINDER_DEVSTACK_CMDLINE, shell=True)
+        sleep(120)
 
 
 class NotReadyException(Exception):
@@ -144,6 +157,7 @@ class OpenStackTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackTestCase, cls).setUpClass()
+        cls.selective_skip()
         cls.setup_host()
         cls.setup_infinibox()
         cls.zone_localhost_with_infinibox()
@@ -171,7 +185,16 @@ class OpenStackTestCase(TestCase):
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
 
-    def wait_for_removal_from_consistencygroup(self, cinder_object, timeout=5):
+    def wait_for_type_creation(self, pool, timeout=60):
+        @retry_func(WaitAndRetryStrategy(timeout, 1))
+        def poll():
+            volume_type = self.get_infinidat_volume_type(pool)
+            if volume_type not in [t.name for t in self.get_cinder_client().volume_types.findall()]:
+                raise NotReadyException(cinder_object.id, cinder_object.status)
+        poll()
+
+    @classmethod
+    def wait_for_removal_from_consistencygroup(cls, cinder_object, timeout=5):
         @retry_func(WaitAndRetryStrategy(timeout, 1))
         def poll():
             if cinder_object.consistencygroup_id is not None:
@@ -307,7 +330,7 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_host(cls):
-        if not path.exists("/usr/bin/cinder"):
+        if not path.exists("/usr/bin/cinder") and not is_devstack():
             raise SkipTest("openstack not installed")
         prepare_host()
         ensure_package_is_installed()
@@ -335,6 +358,12 @@ class RealTestCaseMixin(object):
             cls.system.release()
         except:
             pass
+
+    @classmethod
+    def selective_skip(cls):
+        import os
+        if hasattr(cls, 'ENV_VAR_TO_SKIP') and os.environ.get(cls.ENV_VAR_TO_SKIP, ""):
+            raise SkipTest("skipping this test case, env var {} is set".format(cls.ENV_VAR_TO_SKIP))
 
     @contextmanager
     def provisioning_pool_context(self, provisioning='thick', total_pools_count=1, volume_backend_name=None):
@@ -375,6 +404,7 @@ class RealTestCaseMixin(object):
             config.enable(config_parser, key)
             config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
+        self.wait_for_type_creation(pool)
         with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
@@ -395,15 +425,35 @@ class RealTestCaseMixin(object):
                 config.rename_backend(get_cinder_client(), config_parser, address, pool_name, new_backend_name, old_backend_name)
             restart_cinder()
 
+    def _recreate_cirros_image(self, glance):
+        from urllib import urlretrieve
+        cirros_image_file = urlretrieve("http://download.cirros-cloud.net/0.3.4/cirros-0.3.4-x86_64-disk.img")[0]
+        with open(cirros_image_file, 'rb') as fd:
+            return glance.images.create(name="cirros", is_public=True, container_format="bare", disk_format="qcow2", data=fd)
+
     def get_cirros_image(self):
+        from glanceclient.openstack.common.apiclient.exceptions import NotFound
         glance = get_glance_client()
-        return glance.images.find(name='cirros')
+        try:
+            image = glance.images.find(name='cirros')
+            found = True
+        except NotFound:
+            found = False
+        if found and image.status != "active":
+            image.delete()
+        if not found or image.status != "active":
+            image = self._recreate_cirros_image(glance)
+        return image
 
 
 class MockTestCaseMixin(object):
     get_cinder_client = MagicMock()
     volume_driver_by_type = {}
     volumes = {}
+
+    @classmethod
+    def selective_skip(cls):
+        pass
 
     @classmethod
     def setup_host(cls):
@@ -570,7 +620,7 @@ class MockTestCaseMixin(object):
 
 
 class OpenStackISCSITestCase(OpenStackTestCase):
-    PLATFORM_TO_SKIP = "centos-6"
+    ENV_VAR_TO_SKIP = "SKIP_ISCSI_TESTS"
     ISCSI_GW_SLEEP_TIME = 1
     prefer_fc = False
 
@@ -589,7 +639,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     @classmethod
     def setUpClass(cls):
         super(OpenStackISCSITestCase, cls).setUpClass()
-        cls.selective_skip()
         cls.install_iscsi_manager()
         cls.configure_iscsi_manager()
         cls.iscsi_manager_poll()
@@ -613,17 +662,19 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def _install_scst_for_current_kernel_or_skip_test(cls):
-        kernel_version = execute_assert_success(["uname", "-r"]).get_stdout().strip()
-        package = "scst-{}.x86_64".format(kernel_version)
-        try:
-            execute_assert_success(["yum", "install", "-y", package])
-        except ExecutionError, error:
-            logger.debug("yum install package {} failed, below is stdout and stderr".format(package))
-            logger.debug(error.result.get_stdout())
-            logger.debug(error.result.get_stderr())
-            if "No package" in error.result.get_stderr() + error.result.get_stdout():
-                raise SkipTest("no scst package for kernel {}".format(kernel_version))
-            raise
+        if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
+            "scst" in execute_assert_success(["lsmod"]).get_stdout():
+            # already installed
+            return
+        execute_assert_success("yum install -y svn || apt-get install -y subversion", shell=True)
+        execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r`", shell=True)
+        execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)
+        execute_assert_success("cd scst-trunk/scst && make && make install && modprobe scst && modprobe scst_raid && modprobe scst_disk", shell=True)
+        execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
+        if 'ubuntu' in get_platform_string():
+            execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
+        execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
+        execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
 
     @classmethod
     def install_iscsi_manager(cls):
@@ -631,11 +682,11 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         from os import remove
         for filepath in list(glob("/etc/yum.repos.d/*iscsi*")):
             remove(filepath)
-        execute(["curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -"], shell=True)
         cls._install_scst_for_current_kernel_or_skip_test()
-        execute_assert_success(["yum", "makecache"])
+        curl = execute_assert_success("curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -", shell=True)
+        logger.debug(curl.get_stdout())
+        logger.debug(curl.get_stderr())
         logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
-        logger.debug(execute_assert_success(["yum", "install", "-y", "scstadmin.x86_64"]).get_stdout())
         if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
             execute(["/etc/init.d/tgtd", "stop"])
         execute(["/etc/init.d/scst", "start"])
@@ -698,13 +749,9 @@ class OpenStackISCSITestCase(OpenStackTestCase):
             node_name = open(os.path.join(FC_HOST_DIR, virtual_fc_host, 'node_name')).read().strip().strip('0x')
             open(vport_delete_file_name,'w').write('{}:{}'.format(node_name, port_name))
 
-    @classmethod
-    def selective_skip(cls):
-        import os
-        if cls.PLATFORM_TO_SKIP in os.environ.get("NODE_LABELS", ""):
-            raise SkipTest("skipping this test case on this platform")
 
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
+    ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
     def get_connector(self):
         from infi.hbaapi import get_ports_collection
         fc_ports = get_ports_collection().get_ports()
@@ -717,7 +764,6 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
 
 
 class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
-    PLATFORM_TO_SKIP = "redhat-7"
 
     @classmethod
     def start_iscsi_manager(cls):

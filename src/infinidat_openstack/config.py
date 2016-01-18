@@ -34,7 +34,7 @@ def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
     try:
         from collections import OrderedDict
     except ImportError:
-        from .collections import OrderedDict
+        from .cinder.collections import OrderedDict
 
     parser = RawConfigParser(dict_type=OrderedDict)
     parser.optionxform = str    # make options case-sensitive
@@ -98,7 +98,7 @@ def get_system(config_parser, address, pool_id):
 
 
 def set_enabled_backends(config_parser, enabled_backends):
-    config_parser.set(ENABLED_BACKENDS['section'],ENABLED_BACKENDS['option'], ",".join(enabled_backends))
+    config_parser.set(ENABLED_BACKENDS['section'], ENABLED_BACKENDS['option'], ",".join(enabled_backends))
 
 
 def update_enabled_backends(config_parser, key, update_method):
@@ -128,11 +128,19 @@ def remove(config_parser, key):
 
 
 def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
+    import sys
+    from .scripts import _print
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    if system is None:
+        _print("Could not connect to system \"{}\"".format(pool_name), sys.stderr)
+        raise SystemExit(1)
     raise_if_unsupported(get_system_version(address, username, password, system))
-    pool = system.pools.get(name=pool_name)
+    pool = system.pools.safe_get(name=pool_name)
+    if pool is None:
+        _print("Pool \"{}\" not found".format(pool_name), sys.stderr)
+        raise SystemExit(1)
     pool_id = pool.get_id()
     key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id()) if not volume_backend_name else volume_backend_name
     enabled = True
@@ -175,7 +183,7 @@ def delete_volume_type(cinder_client, volume_backend_name):
 def rename_backend(cinder_client, config_parser, address, pool_name, old_backend_name, new_backend_name):
     if not config_parser.has_section(new_backend_name):
         config_parser.add_section(new_backend_name)
-    for k,v in config_parser._sections[old_backend_name].items(): # We do this hack so we won't inherit the defult section keys/values
+    for k, v in config_parser._sections[old_backend_name].items():  # We do this hack so we won't inherit the defult section keys/values
         if k == '__name__':
             continue
         config_parser.set(new_backend_name, k, v)

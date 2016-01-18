@@ -58,7 +58,7 @@ class CommandlineTestsMixin(object):
     def test_system_list(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-            stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
             pid = self.assert_command(args, stderr=stderr)
             pid = self.assert_command(["volume-backend", "list"], stderr='')
             self.assertIn(self.infinisdk.get_name(), pid.get_stdout())
@@ -69,7 +69,7 @@ class CommandlineTestsMixin(object):
     def test_set_and_remove(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-            stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
             pid = self.assert_command(args, stderr=stderr)
             args = ["volume-backend", "remove", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
             pid = self.assert_command(args, stderr=stderr)
@@ -77,7 +77,7 @@ class CommandlineTestsMixin(object):
     def test_set_and_toggle_enable(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-            stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
             pid = self.assert_command(args, stderr=stderr)
             args = ["volume-backend", "enable", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
             pid = self.assert_command(args, stderr=stderr)
@@ -124,7 +124,7 @@ class CommandlineTestsMixin(object):
     def test_update_after_pool_rename(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-            stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
             pid = self.assert_command(args, stderr=stderr)
             pool.update_name("foo")
             args = ["volume-backend", "update", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
@@ -133,7 +133,7 @@ class CommandlineTestsMixin(object):
     def test_update_all(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-            stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
             pid = self.assert_command(args, stderr=stderr)
             args = ["volume-backend", "update", "all", "--commit"]
             pid = self.assert_command(args, stderr='done\n')
@@ -274,7 +274,10 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     @contextmanager
     def mock_clients_context(self):
         from infinisdk import InfiniBox
-        infinisdk_side_effect = lambda address, use_ssl, auth=("admin", "123456"): InfiniBox(self.simulator, auth=auth)
+        def infinisdk_side_effect(address, use_ssl, auth=("admin", "123456")):
+            if address == self.infinisdk.get_name():
+                return InfiniBox(self.simulator, auth=auth)
+            InfiniBox(address, auth=auth)
         with patch("infinisdk.InfiniBox", side_effect=infinisdk_side_effect) as infinisdk:
             with patch("cinderclient.v1.client.Client"):
                 yield
@@ -313,7 +316,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     def test_system_list__exact_output(self):
         pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-        stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+        stderr = 'done, please restart cinder-volume service for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         pid = self.assert_command(["volume-backend", "list"], stderr='')
         format_kwargs = dict(system_name=self.infinisdk.get_name(), system_serial=self.infinisdk.get_serial(),
@@ -323,7 +326,7 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     def test_system_list__password_changed(self):
         pool = self.infinisdk.pools.create(**self.POOL_CREATE_KWARGS)
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
-        stderr = 'done, restarting cinder-volume service is requires for changes to take effect\n'
+        stderr = 'done, please restart cinder-volume service for changes to take effect\n'
         pid = self.assert_command(args, stderr=stderr)
         with patch("infinidat_openstack.scripts.get_infinisdk_from_arguments", side_effect=Exception("error")):
             pid = self.assert_command(["volume-backend", "list"], stderr='')
@@ -338,7 +341,13 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
 
     def test_set__invalid_pool_name(self):
         args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", "foo", "--commit"]
-        pid = self.assert_command(args, stderr=None, return_code=1)
+        stderr = 'Pool "foo" not found\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
+
+    def test_set__invalid_system(self):
+        args = ["volume-backend", "set", "foo", "admin", "123456", "foo", "--commit"]
+        stderr = 'Could not connect to system "foo"\n'
+        pid = self.assert_command(args, stderr=stderr, return_code=1)
 
     def get_product_version(self):
         from infinidat_openstack.__version__ import __version__

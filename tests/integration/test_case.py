@@ -192,7 +192,6 @@ class OpenStackTestCase(TestCase):
             if volume_type not in [t.name for t in self.get_cinder_client().volume_types.findall()]:
                 raise NotReadyException(cinder_object.id, cinder_object.status)
         poll()
-        sleep(30) # HACK: The above logic doesn't work in test_create_volume_different_backend_name. so adding it for everyone just in case
 
     @classmethod
     def wait_for_removal_from_consistencygroup(cls, cinder_object, timeout=5):

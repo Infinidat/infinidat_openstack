@@ -3,6 +3,7 @@ from tests.test_common import is_devstack
 from infi.unittest import parameters, SkipTest
 from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.pyutils.contexts import contextmanager
+from time import sleep
 
 
 class ProvisioningTestsMixin(object):
@@ -209,6 +210,7 @@ class ProvisioningTestsMixin(object):
         if isinstance(self, test_case.MockTestCaseMixin):
             raise SkipTest("This test is meant to test the real configuration")
         with self.provisioning_pool_context(volume_backend_name="kuku") as pool:
+            sleep(30) # HACK: The wait_for_type_creation logic doesn't work in test_create_volume_different_backend_name.
             with self.assert_volume_count() as get_diff:
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                     [infinibox_volume], _ = get_diff()

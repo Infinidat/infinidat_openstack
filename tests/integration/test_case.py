@@ -662,10 +662,14 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def _install_scst_for_current_kernel_or_skip_test(cls):
-        if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
-            "scst" in execute_assert_success(["lsmod"]).get_stdout():
-            # already installed
-            return
+        # check if already installed
+        if 'ubuntu' in get_platform_string():
+            if "iscsi_scst" in execute_assert_success(["lsmod"]).get_stdout():
+                return
+        else:
+            if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
+                "scst" in execute_assert_success(["lsmod"]).get_stdout():
+                return
         execute_assert_success("yum install -y svn || apt-get install -y subversion", shell=True)
         execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r`", shell=True)
         execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)

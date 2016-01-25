@@ -677,7 +677,9 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
         if 'ubuntu' in get_platform_string():
             execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
-        execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
+            execute_assert_success("modprobe iscsi-scst", shell=True)
+        else:
+            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
         execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
 
     @classmethod

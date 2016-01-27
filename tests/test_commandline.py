@@ -52,7 +52,7 @@ class CommandlineTestsMixin(object):
         self._assert_version("-v")
 
     def test_system_list__empty(self):
-        pid = self.assert_command(["volume-backend", "list"], stderr='no systems configured\n')
+        pid = self.assert_command(["volume-backend", "list"], stderr='no volume backends configured\n')
         self.assertEquals(pid.get_stdout(), '')
 
     def test_system_list(self):
@@ -142,7 +142,7 @@ class CommandlineTestsMixin(object):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name()]
             pid = self.assert_command(args, return_code=0)
-            pid = self.assert_command(["volume-backend", "list"], stderr='no systems configured\n')
+            pid = self.assert_command(["volume-backend", "list"], stderr='no volume backends configured\n')
             self.assertEquals(pid.get_stdout(), '')
 
     def assert_command(self, args, stderr=None, return_code=0):
@@ -256,19 +256,11 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
     def mock_print_context(self):
         from StringIO import StringIO
 
-        def _print(text, stream=sys.stdout):
-            if stream is sys.stdout:
-                print >> stdout, text
-            elif stream is sys.stderr:
-                print >> stderr, text
-            else:
-                raise RuntimeError()
-
         stderr = StringIO()
         stdout = StringIO()
 
-        with patch("infinidat_openstack.scripts._print", side_effect=_print):
-            with patch("infinidat_openstack.scripts.TRACEBACK_FILE", new=stderr):
+        with patch("sys.stdout", new=stdout):
+            with patch("sys.stderr", new=stderr):
                 yield stdout, stderr
 
     @contextmanager

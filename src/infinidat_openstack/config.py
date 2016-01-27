@@ -1,3 +1,4 @@
+from __future__ import print_function
 import contextlib
 import hashlib
 import random
@@ -76,7 +77,7 @@ def get_infinibox_sections(config_parser):
     return sections
 
 
-def get_systems(config_parser):
+def get_volume_backends(config_parser):
     """:returns: a list of dictionaries"""
     def _get(item, key):
         value = item.get(key, "<undefined>")
@@ -91,8 +92,8 @@ def get_systems(config_parser):
     return systems
 
 
-def get_system(config_parser, address, pool_id):
-    for system in get_systems(config_parser):
+def get_volume_backend(config_parser, address, pool_id):
+    for system in get_volume_backends(config_parser):
         if system['address'] == address and system['pool_id'] == pool_id:
             return system
 
@@ -129,24 +130,23 @@ def remove(config_parser, key):
 
 def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
     import sys
-    from .scripts import _print
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(address, use_ssl=True, auth=(username, password))
     if system is None:
-        _print("Could not connect to system \"{}\"".format(pool_name), sys.stderr)
+        print("Could not connect to system \"{}\"".format(pool_name), file=sys.stderr)
         raise SystemExit(1)
     raise_if_unsupported(get_system_version(address, username, password, system))
     pool = system.pools.safe_get(name=pool_name)
     if pool is None:
-        _print("Pool \"{}\" not found".format(pool_name), sys.stderr)
+        print("Pool \"{}\" not found".format(pool_name), file=sys.stderr)
         raise SystemExit(1)
     pool_id = pool.get_id()
     key = "infinibox-{0}-pool-{1}".format(system.get_serial(), pool.get_id()) if not volume_backend_name else volume_backend_name
     enabled = True
-    for system in get_systems(config_parser):
-        if system['address'] == address and system['pool_id'] == pool_id:
-            key = system['key']
+    for backend in get_volume_backends(config_parser):
+        if backend['address'] == address and backend['pool_id'] == pool_id:
+            key = backend['key']
             enabled = key in get_enabled_backends(config_parser)
     if not config_parser.has_section(key):
         config_parser.add_section(key)

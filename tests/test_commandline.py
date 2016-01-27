@@ -140,6 +140,14 @@ class CommandlineTestsMixin(object):
             args = ["volume-backend", "set-protocol", "iscsi", self.infinisdk.get_name(), str(pool.get_id()), "--commit"]
             pid = self.assert_command(args, stderr=stderr)
 
+    def test_rename(self):
+        with self.provisioning_pool_context() as pool:
+            args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]
+            stderr = 'done, please restart cinder-volume service for changes to take effect\n'
+            pid = self.assert_command(args, stderr=stderr)
+            args = ["volume-backend", "rename", self.infinisdk.get_name(), str(pool.get_id()), "new_name", "--commit"]
+            pid = self.assert_command(args, stderr=stderr)
+
     def test_update_all(self):
         with self.provisioning_pool_context() as pool:
             args = ["volume-backend", "set", self.infinisdk.get_name(), "admin", "123456", pool.get_name(), "--commit"]

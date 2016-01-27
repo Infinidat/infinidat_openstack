@@ -25,7 +25,8 @@ CINDER_LOGDIR = "/var/log/cinder"
 VAR_LOG_MESSAGES = "/var/log/syslog" if "ubuntu" in linux_distribution()[0].lower() else "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
-CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+RC_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+CONFIG_FILE = "/etc/cinder/cinder.conf"
 
 
 RESTART_CINDER_DEVSTACK_CMDLINE = """
@@ -101,7 +102,7 @@ def fix_ip_addresses_in_openstack():
     # now that the IP address has changed, nothing is working anymore
     # so we need to find the new IP address, search-and-fucking-replace it in all the files
     # restart openatack and pray it will work
-    with open(CONFIG_FILE) as fd:
+    with open(RC_FILE) as fd:
         environment_text = fd.read()
 
     auth_url = scripts.parse_environment(environment_text)[-1]
@@ -112,7 +113,7 @@ def fix_ip_addresses_in_openstack():
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
     regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'), new_ip_address)
 
-    with open(CONFIG_FILE, 'w') as fd:
+    with open(RC_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
     execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
     fix_ip_addresses_in_openstack_keystone_database(regex)
@@ -417,15 +418,20 @@ class RealTestCaseMixin(object):
         restart_cinder()
 
     @contextmanager
-    def rename_backend_context(self, address, pool_name, old_backend_name, new_backend_name):
+    def rename_backend_context(self, address, pool_id, old_backend_name, new_backend_name):
+        arguments = {"rename": True,
+                     "<management-address>": address,
+                     "<pool-id>": pool_id,
+                     "<new-volume-backend-name>": new_backend_name,
+                     "--commit": True,
+                     "--rc-file": RC_FILE}
         try:
-            with config.get_config_parser(write_on_exit=True) as config_parser:
-                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, old_backend_name, new_backend_name)
+            scripts.handle_commands(arguments, CONFIG_FILE)
             restart_cinder()
             yield
         finally:
-            with config.get_config_parser(write_on_exit=True) as config_parser:
-                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, new_backend_name, old_backend_name)
+            arguments["<new-volume-backend-name>"] = old_backend_name
+            scripts.handle_commands(arguments, CONFIG_FILE)
             restart_cinder()
 
     def _recreate_cirros_image(self, glance):

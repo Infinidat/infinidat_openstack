@@ -43,6 +43,7 @@ def print_log(logfile_path, new_data=''):
             print fd.read()
     print '--- end ---'.format(logfile_path)
 
+
 @contextmanager
 def logfile_context(logfile_path):
     with open(logfile_path) as fd:
@@ -69,6 +70,23 @@ def logs_context(logs_dir):
         for new_logfile in (set(after) - set(before)):
             print_log(new_logfile)
 
+
+@contextmanager
+def cinder_logs_context():
+    with logs_context(CINDER_LOGDIR):
+        yield
+
+
+@contextmanager
+def iscsi_manager_logs_context():
+    with logs_context(ISCSIMANAGER_LOGDIR):
+        yield
+
+
+@contextmanager
+def var_log_messages_logs_context():
+    with logfile_context(VAR_LOG_MESSAGES):
+        yield
 
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):
@@ -378,21 +396,6 @@ class RealTestCaseMixin(object):
             purge(pool)
 
     @contextmanager
-    def cinder_logs_context(self):
-        with logs_context(CINDER_LOGDIR):
-            yield
-
-    @contextmanager
-    def iscsi_manager_logs_context(self):
-        with logs_context(ISCSIMANAGER_LOGDIR):
-            yield
-
-    @contextmanager
-    def var_log_messages_logs_context(self):
-        with logfile_context(VAR_LOG_MESSAGES):
-            yield
-
-    @contextmanager
     def cinder_context(self, infinisdk, pool, provisioning='thick', volume_backend_name=None):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinisdk.get_name(), pool.get_name(), "admin", "123456",
@@ -405,7 +408,7 @@ class RealTestCaseMixin(object):
             config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
         self.wait_for_type_creation(pool)
-        with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
+        with cinder_logs_context(), iscsi_manager_logs_context(), var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
@@ -722,7 +725,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.get_api_addresses()[0][0], "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
-        with logs_context(ISCSIMANAGER_LOGDIR):
+        with logs_context(ISCSIMANAGER_LOGDIR), var_log_messages_logs_context():
             execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
         cls.start_iscsi_manager()
 

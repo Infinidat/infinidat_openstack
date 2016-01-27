@@ -191,3 +191,6 @@ def rename_backend(cinder_client, config_parser, address, pool_name, old_backend
     disable(config_parser, old_backend_name)
     remove(config_parser, old_backend_name)
     update_volume_type(cinder_client, new_backend_name, address, pool_name)
+
+def update_field(config_parser, volume_backend_name, field, value):
+    config_parser.set(volume_backend_name, field, value)

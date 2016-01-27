@@ -163,3 +163,14 @@ class ConfigTestCase(TestCase):
             after = fd.read()
         self.assertIn("#", before)
         self.assertNotIn("#", after)
+
+    def test_update_field(self, filepath="tests/conf/testing_update_field.conf"):
+        self.prepare_conf(filepath, "tests/conf/one.conf")
+        with open(filepath) as fd:
+            before = fd.read()
+        with config.get_config_parser(filepath, True) as config_parser:
+            config.update_field(config_parser, "infinibox-1-pool-1", "infinidat_prefer_fc", False)
+        with open(filepath) as fd:
+            after = fd.read()
+        self.assertIn("infinidat_prefer_fc=False", before)
+        self.assertNotIn("infinidat_prefer_fc = True", after)

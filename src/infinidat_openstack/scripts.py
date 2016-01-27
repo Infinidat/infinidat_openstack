@@ -8,6 +8,7 @@ Usage:
     infini-openstack [options] volume-backend disable <management-address> <pool-id>
     infini-openstack [options] volume-backend update (all | <management-address> <pool-id>)
     infini-openstack [options] volume-backend rename <management-address> <pool-id> <new-volume-backend-name>
+    infini-openstack [options] volume-backend set-protocol (iscsi | fc) <management-address> <pool-id>
     infini-openstack (-h | --help)
     infini-openstack (-v | --version)
 
@@ -40,7 +41,7 @@ with warnings.catch_warnings():
     import infinisdk  # infinisdk import requests, and requests.packagers.urllib3 calls warning.simplefilter
 
 
-CONFIGURATION_MODIFYING_COMMANDS = ("set", "remove", "enable", "disable", "update", "rename")
+CONFIGURATION_MODIFYING_COMMANDS = ("set", "remove", "enable", "disable", "update", "rename", "set-protocol")
 DONE_MESSAGE = "done, please restart cinder-volume service for changes to take effect"
 DONE_NO_RESTART_MESSAGE = "done"
 TABLE_HEADER = ["address", "username", "enabled", "status", "system serial", "system name", "pool id", "pool name"]
@@ -117,9 +118,9 @@ def volume_backend_remove(config_parser, cinder_client, arguments):
 def volume_backend_enable(config_parser, cinder_client, arguments):
     volume_backend = get_existing_volume_backend(config_parser, arguments, "enable")
     config.enable(config_parser, volume_backend['key'])
-    infinisdk = get_infinisdk_for_volume_backend(volume_backend)
-    pool = infinisdk.objects.pools.get(id=arguments.pool_id)
     if arguments.commit:
+        infinisdk = get_infinisdk_for_volume_backend(volume_backend)
+        pool = infinisdk.objects.pools.get(id=arguments.pool_id)
         config.update_volume_type(cinder_client, volume_backend['key'], infinisdk.get_name(), pool.get_name())
     print_done_message(arguments.commit)
 
@@ -155,10 +156,17 @@ def volume_backend_rename(config_parser, cinder_client, arguments):
                           arguments.pool_id,
                           volume_backend['key'],
                           new_backend_name)
-    infinisdk = get_infinisdk_for_volume_backend(volume_backend)
-    pool = infinisdk.objects.pools.get(id=arguments.pool_id)
     if arguments.commit:
+        infinisdk = get_infinisdk_for_volume_backend(volume_backend)
+        pool = infinisdk.objects.pools.get(id=arguments.pool_id)
         config.update_volume_type(cinder_client, new_backend_name, infinisdk.get_name(), pool.get_name())
+    print_done_message(arguments.commit)
+
+
+def volume_backend_set_protocol(config_parser, cinder_client, arguments):
+    volume_backend = get_existing_volume_backend(config_parser, arguments, "set protocol")
+    prefer_fc = arguments.get('fc')
+    config.update_field(config_parser, volume_backend["key"], "infinidat_prefer_fc", prefer_fc)
     print_done_message(arguments.commit)
 
 
@@ -244,6 +252,8 @@ def handle_commands(arguments, config_file):
             return volume_backend_update(config_parser, cinder_client, arguments)
         elif arguments['rename']:
             return volume_backend_rename(config_parser, cinder_client, arguments)
+        elif arguments['set-protocol']:
+            return volume_backend_set_protocol(config_parser, cinder_client, arguments)
 
 def _update_cg_policy():
     from re import compile, MULTILINE

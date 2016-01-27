@@ -692,11 +692,16 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         curl = execute_assert_success("curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -", shell=True)
         logger.debug(curl.get_stdout())
         logger.debug(curl.get_stderr())
-        logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
-        if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
-            execute(["/etc/init.d/tgtd", "stop"])
-        execute(["/etc/init.d/scst", "start"])
-        execute(["yum", "install", "-y", "lsscsi"])
+        logger.debug(execute_assert_success("yum install -y iscsi-manager || apt-get install -y iscsi-manager", shell=True).get_stdout())
+        if 'ubuntu' in get_platform_string():
+            execute_assert_success(["service", "tgt", "stop"])
+            execute_assert_success(["service", "tgt", "start"])
+            execute_assert_success(["service", "scst", "start"])
+        else:
+            if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
+                execute(["/etc/init.d/tgtd", "stop"])
+            execute(["/etc/init.d/scst", "start"])
+        execute_assert_success("yum install -y lsscsi || apt-get install -y lsscsi", shell=True)
 
     @classmethod
     def start_iscsi_manager(cls):

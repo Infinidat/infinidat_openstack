@@ -680,7 +680,8 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
         if 'ubuntu' in get_platform_string():
             execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
-            execute_assert_success("modprobe iscsi-scst", shell=True)
+            execute_assert_success("stop tgt", shell=True)
+            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
         else:
             execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
         execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
@@ -697,8 +698,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         logger.debug(curl.get_stderr())
         logger.debug(execute_assert_success("yum install -y iscsi-manager || apt-get install -y iscsi-manager", shell=True).get_stdout())
         if 'ubuntu' in get_platform_string():
-            execute_assert_success(["service", "tgt", "stop"])
-            execute_assert_success(["service", "tgt", "start"])
             execute_assert_success(["service", "scst", "start"])
         else:
             if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7

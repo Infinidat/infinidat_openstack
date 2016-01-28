@@ -215,11 +215,11 @@ def translate_arguments(arguments):
     """ return munch with the same keys as "arguments" plus easier attribute access to common arguments """
     from munch import Munch
     result = Munch(arguments)
-    result.address = arguments["<management-address>"]
-    result.username = arguments["<username>"]
-    result.password = arguments["<password>"]
-    result.pool_name = arguments["<pool-name>"]
-    result.commit = arguments["--commit"]
+    result.address = arguments.get("<management-address>")
+    result.username = arguments.get("<username>")
+    result.password = arguments.get("<password>")
+    result.pool_name = arguments.get("<pool-name>")
+    result.commit = arguments.get("--commit")
     try:
         result.pool_id = int(arguments.get("<pool-id>") or 0)
     except ValueError:

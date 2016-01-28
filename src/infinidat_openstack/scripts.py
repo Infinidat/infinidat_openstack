@@ -134,7 +134,7 @@ def volume_backend_disable(config_parser, cinder_client, arguments):
 
 
 def volume_backend_update(config_parser, cinder_client, arguments):
-    if arguments["all"]:
+    if arguments.get("all"):
         for _volume_backend in config.get_volume_backends(config_parser):
             infinisdk = get_infinisdk_for_volume_backend(_volume_backend)
             pool = infinisdk.pools.get(id=_volume_backend['pool_id'])
@@ -228,31 +228,31 @@ def translate_arguments(arguments):
 
 def handle_commands(arguments, config_file):
     arguments = translate_arguments(arguments)
-    configuration_modifying_command = any(arguments[kwarg] for kwarg in CONFIGURATION_MODIFYING_COMMANDS)
+    configuration_modifying_command = any(arguments.get(kwarg) for kwarg in CONFIGURATION_MODIFYING_COMMANDS)
     if configuration_modifying_command and not arguments.commit:
         print("This is a dry run. To commit the changes into cinder's configuration file, "
               "pass --commit to this script (note: this flag will also erase comments inside "
               "cinder's configuration file).")
     try:
-        cinder_client = get_cinder_client(arguments['--rc-file'])
+        cinder_client = get_cinder_client(arguments.get('--rc-file'))
     except Exception as error:
         raise RuntimeError("failed to connect to cinder service: {0}".format(error.message or error))
     with config.get_config_parser(config_file, arguments.commit) as config_parser:
-        if arguments['list']:
+        if arguments.get('list'):
             return volume_backend_list(config_parser, cinder_client, arguments)
-        elif arguments['set']:
+        elif arguments.get('set'):
             return volume_backend_set(config_parser, cinder_client, arguments)
-        elif arguments['remove']:
+        elif arguments.get('remove'):
             return volume_backend_remove(config_parser, cinder_client, arguments)
-        elif arguments['enable']:
+        elif arguments.get('enable'):
             return volume_backend_enable(config_parser, cinder_client, arguments)
-        elif arguments['disable']:
+        elif arguments.get('disable'):
             volume_backend_disable(config_parser, cinder_client, arguments)
-        elif arguments['update']:
+        elif arguments.get('update'):
             return volume_backend_update(config_parser, cinder_client, arguments)
-        elif arguments['rename']:
+        elif arguments.get('rename'):
             return volume_backend_rename(config_parser, cinder_client, arguments)
-        elif arguments['set-protocol']:
+        elif arguments.get('set-protocol'):
             return volume_backend_set_protocol(config_parser, cinder_client, arguments)
 
 def _update_cg_policy():
@@ -273,10 +273,10 @@ def main(argv=sys.argv[1:]):
     from infinisdk.core.exceptions import APICommandFailed
     from logbook.handlers import NullHandler
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
-    config_file = arguments['--config-file']
-    rc_file = arguments['--rc-file']
+    config_file = arguments.get('--config-file')
+    rc_file = arguments.get('--rc-file')
 
-    if arguments['-v']:
+    if arguments.get('-v'):
         print(__version__)
         return
     assert_config_file_exists(config_file)

@@ -715,7 +715,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll --lab-manual-zoning --with-traces &> /dev/null
+            iscsi-manager poll --lab-manual-zoning --with-traces 2> /dev/null
             sleep {}
         done
         """

@@ -715,7 +715,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll --lab-manual-zoning --with-traces 2> /dev/null
+            iscsi-manager poll --lab-manual-zoning 2> /dev/null
             sleep {}
         done
         """
@@ -787,7 +787,7 @@ class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
     @classmethod
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
-        iscsi-manager poll-infinite 3 --lab-manual-zoning --with-traces &> /dev/null
+        iscsi-manager poll-infinite 3 --lab-manual-zoning &> /dev/null
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])

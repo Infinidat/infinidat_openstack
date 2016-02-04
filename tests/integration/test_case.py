@@ -362,7 +362,7 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_infinibox(cls):
-        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600)
+        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600*2)
         cls.system.purge()
         cls.infinisdk = cls.system.get_infinisdk()
 

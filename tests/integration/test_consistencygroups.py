@@ -32,7 +32,7 @@ class CGRealTestCaseMixin(test_case.RealTestCaseMixin):
     def setup_infinibox(cls):
         cls.skip_if_needed()
         cls.system = cls.system_factory.allocate_infinidat_system(
-            expiration_in_seconds=3600,
+            expiration_in_seconds=3600*2,
             labels=['ci-ready','infinibox-2.2'])
         cls.system.purge()
         cls.infinisdk = cls.system.get_infinisdk()

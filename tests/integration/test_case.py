@@ -185,6 +185,7 @@ class OpenStackTestCase(TestCase):
     def tearDownClass(cls):
         cls.teardown_infinibox()
         cls.teardown_host()
+        super(OpenStackTestCase, cls).tearDownClass()
 
     @contextmanager
     def assert_volume_count(self, diff=0):
@@ -462,7 +463,8 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def selective_skip(cls):
-        pass
+        if os.environ.get('SKIP_MOCK_TESTS', ''):
+            raise SkipTest("skipping mock test case")
 
     @classmethod
     def setup_host(cls):

@@ -335,18 +335,22 @@ class RealTestCaseMixin(object):
                 config.set_enabled_backends(config_parser, [])
                 for section in config.get_infinibox_sections(config_parser):
                     config_parser.remove_section(section)
-            restart_cinder()
 
-        cinder_client = cls.get_cinder_client()
-        cleanup_volumes()
-        sleep(10)
-        volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
-        assert volumes == list()
-        cleanup_volume_types()
-        sleep(10)
-        volume_types = list(cinder_client.volume_types.findall())
-        assert volume_types == list()
-        cleanup_volume_backends()
+        with cinder_logs_context():
+            restart_cinder()
+            sleep(10)
+            cinder_client = cls.get_cinder_client()
+            cleanup_volumes()
+            sleep(10)
+            volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
+            assert volumes == list()
+            cleanup_volume_types()
+            sleep(10)
+            volume_types = list(cinder_client.volume_types.findall())
+            assert volume_types == list()
+            cleanup_volume_backends()
+            restart_cinder()
+            sleep(10)
 
     @classmethod
     def setup_host(cls):

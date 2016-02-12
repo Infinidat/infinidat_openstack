@@ -463,6 +463,7 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def selective_skip(cls):
+        import os
         if os.environ.get('SKIP_MOCK_TESTS', ''):
             raise SkipTest("skipping mock test case")
 

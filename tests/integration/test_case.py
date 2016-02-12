@@ -152,6 +152,12 @@ def get_glance_client(host="localhost", token=None):
     return glance
 
 
+def restart_openstack():
+    if not is_devstack():
+        execute_assert_success(["openstack-service", "restart"])
+        sleep(60)
+
+
 def restart_cinder(cinder_volume_only=True):
     if not is_devstack():
         execute_assert_success(["openstack-service", "restart",
@@ -337,16 +343,19 @@ class RealTestCaseMixin(object):
                     config_parser.remove_section(section)
             restart_cinder()
 
-        cinder_client = cls.get_cinder_client()
-        cleanup_volumes()
-        sleep(10)
-        volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
-        assert volumes == list()
-        cleanup_volume_types()
-        sleep(10)
-        volume_types = list(cinder_client.volume_types.findall())
-        assert volume_types == list()
-        cleanup_volume_backends()
+        logger.debug("cleanup_infiniboxes_from_cinder")
+        with cinder_logs_context(), var_log_messages_logs_context():
+            restart_openstack()
+            cinder_client = cls.get_cinder_client()
+            cleanup_volumes()
+            sleep(10)
+            volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
+            assert volumes == list()
+            cleanup_volume_types()
+            sleep(10)
+            volume_types = list(cinder_client.volume_types.findall())
+            assert volume_types == list()
+            cleanup_volume_backends()
 
     @classmethod
     def setup_host(cls):

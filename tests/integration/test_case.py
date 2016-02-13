@@ -171,6 +171,12 @@ def restart_openstack():
         sleep(60)
 
 
+def restart_apache():
+    if not is_devstack():
+        execute_assert_success(["service", "httpd", "restart"])
+        sleep(60)
+
+
 def restart_cinder(cinder_volume_only=True):
     if not is_devstack():
         execute_assert_success(["openstack-service", "restart",
@@ -359,6 +365,7 @@ class RealTestCaseMixin(object):
         logger.debug("cleanup_infiniboxes_from_cinder")
         with httpd_logs_context(), keystone_logs_context(), cinder_logs_context(), var_log_messages_logs_context():
             restart_openstack()
+            restart_apache()
             cinder_client = cls.get_cinder_client()
             cleanup_volumes()
             sleep(10)

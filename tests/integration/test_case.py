@@ -79,6 +79,12 @@ def cinder_logs_context():
 
 
 @contextmanager
+def keystone_logs_context():
+    with logs_context(KEYSTONE_LOGDIR):
+        yield
+
+
+@contextmanager
 def iscsi_manager_logs_context():
     with logs_context(ISCSIMANAGER_LOGDIR):
         yield
@@ -344,7 +350,7 @@ class RealTestCaseMixin(object):
             restart_cinder()
 
         logger.debug("cleanup_infiniboxes_from_cinder")
-        with cinder_logs_context(), var_log_messages_logs_context():
+        with keystone_logs_context(), cinder_logs_context(), var_log_messages_logs_context():
             restart_openstack()
             cinder_client = cls.get_cinder_client()
             cleanup_volumes()

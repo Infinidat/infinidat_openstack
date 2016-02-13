@@ -24,6 +24,7 @@ logger = getLogger(__name__)
 CINDER_LOGDIR = "/var/log/cinder"
 VAR_LOG_MESSAGES = "/var/log/syslog" if "ubuntu" in linux_distribution()[0].lower() else "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
+HTTPD_LOGDIR = "/var/log/httpd"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
 RC_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
 CONFIG_FILE = "/etc/cinder/cinder.conf"
@@ -81,6 +82,12 @@ def cinder_logs_context():
 @contextmanager
 def keystone_logs_context():
     with logs_context(KEYSTONE_LOGDIR):
+        yield
+
+
+@contextmanager
+def httpd_logs_context():
+    with logs_context(HTTPD_LOGDIR):
         yield
 
 
@@ -350,7 +357,7 @@ class RealTestCaseMixin(object):
             restart_cinder()
 
         logger.debug("cleanup_infiniboxes_from_cinder")
-        with keystone_logs_context(), cinder_logs_context(), var_log_messages_logs_context():
+        with httpd_logs_context(), keystone_logs_context(), cinder_logs_context(), var_log_messages_logs_context():
             restart_openstack()
             cinder_client = cls.get_cinder_client()
             cleanup_volumes()

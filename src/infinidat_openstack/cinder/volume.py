@@ -151,7 +151,7 @@ def get_powertools_version():
     __git_dirty_diff__ = ''"""
     try:
         with open(INFINIHOST_VERSION_FILE) as fd:
-            return fd.read().splitlines()[0].split('=').strip().strip('"')
+            return fd.read().splitlines()[0].split('=')[0].strip().strip('"')
     except:
         return '0'
 

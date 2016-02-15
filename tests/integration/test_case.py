@@ -168,13 +168,13 @@ def get_glance_client(host="localhost", token=None):
 def restart_openstack():
     if not is_devstack():
         execute_assert_success(["openstack-service", "restart"])
-        sleep(60)
+        sleep(2)
 
 
 def restart_apache():
     if not is_devstack():
         execute_assert_success(["service", "httpd", "restart"])
-        sleep(60)
+        sleep(2)
 
 
 def restart_cinder(cinder_volume_only=True):
@@ -368,11 +368,11 @@ class RealTestCaseMixin(object):
             restart_apache()
             cinder_client = cls.get_cinder_client()
             cleanup_volumes()
-            sleep(10)
+            sleep(2)
             volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
             assert volumes == list()
             cleanup_volume_types()
-            sleep(10)
+            sleep(2)
             volume_types = list(cinder_client.volume_types.findall())
             assert volume_types == list()
             cleanup_volume_backends()

@@ -24,8 +24,10 @@ logger = getLogger(__name__)
 CINDER_LOGDIR = "/var/log/cinder"
 VAR_LOG_MESSAGES = "/var/log/syslog" if "ubuntu" in linux_distribution()[0].lower() else "/var/log/messages"
 KEYSTONE_LOGDIR = "/var/log/keystone"
+HTTPD_LOGDIR = "/var/log/httpd"
 ISCSIMANAGER_LOGDIR = "/var/log/iscsi-manager"
-CONFIG_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+RC_FILE = path.expanduser(path.join('~', 'keystonerc_admin'))
+CONFIG_FILE = "/etc/cinder/cinder.conf"
 
 
 RESTART_CINDER_DEVSTACK_CMDLINE = """
@@ -42,6 +44,7 @@ def print_log(logfile_path, new_data=''):
         with open(logfile_path) as fd:
             print fd.read()
     print '--- end ---'.format(logfile_path)
+
 
 @contextmanager
 def logfile_context(logfile_path):
@@ -70,6 +73,35 @@ def logs_context(logs_dir):
             print_log(new_logfile)
 
 
+@contextmanager
+def cinder_logs_context():
+    with logs_context(CINDER_LOGDIR):
+        yield
+
+
+@contextmanager
+def keystone_logs_context():
+    with logs_context(KEYSTONE_LOGDIR):
+        yield
+
+
+@contextmanager
+def httpd_logs_context():
+    with logs_context(HTTPD_LOGDIR):
+        yield
+
+
+@contextmanager
+def iscsi_manager_logs_context():
+    with logs_context(ISCSIMANAGER_LOGDIR):
+        yield
+
+
+@contextmanager
+def var_log_messages_logs_context():
+    with logfile_context(VAR_LOG_MESSAGES):
+        yield
+
 
 def fix_ip_addresses_in_openstack_keystone_database(regex):
     filename = 'mysql.dump'
@@ -83,7 +115,7 @@ def fix_ip_addresses_in_openstack():
     # now that the IP address has changed, nothing is working anymore
     # so we need to find the new IP address, search-and-fucking-replace it in all the files
     # restart openatack and pray it will work
-    with open(CONFIG_FILE) as fd:
+    with open(RC_FILE) as fd:
         environment_text = fd.read()
 
     auth_url = scripts.parse_environment(environment_text)[-1]
@@ -94,7 +126,7 @@ def fix_ip_addresses_in_openstack():
     execute_assert_success(['rm', '-rf', '/var/log/*/*'])
     regex = "s/{}/{}/g".format(old_ip_address.replace('.', '\.'), new_ip_address)
 
-    with open(CONFIG_FILE, 'w') as fd:
+    with open(RC_FILE, 'w') as fd:
         fd.write(environment_text.replace(old_ip_address, new_ip_address))
     execute_assert_success('grep -rl {} /etc | xargs sed -ie {}'.format(old_ip_address, regex), shell=True)
     fix_ip_addresses_in_openstack_keystone_database(regex)
@@ -133,6 +165,18 @@ def get_glance_client(host="localhost", token=None):
     return glance
 
 
+def restart_openstack():
+    if not is_devstack():
+        execute_assert_success(["openstack-service", "restart"])
+        sleep(60)
+
+
+def restart_apache():
+    if not is_devstack():
+        execute_assert_success(["service", "httpd", "restart"])
+        sleep(60)
+
+
 def restart_cinder(cinder_volume_only=True):
     if not is_devstack():
         execute_assert_success(["openstack-service", "restart",
@@ -166,6 +210,7 @@ class OpenStackTestCase(TestCase):
     def tearDownClass(cls):
         cls.teardown_infinibox()
         cls.teardown_host()
+        super(OpenStackTestCase, cls).tearDownClass()
 
     @contextmanager
     def assert_volume_count(self, diff=0):
@@ -317,16 +362,20 @@ class RealTestCaseMixin(object):
                     config_parser.remove_section(section)
             restart_cinder()
 
-        cinder_client = cls.get_cinder_client()
-        cleanup_volumes()
-        sleep(10)
-        volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
-        assert volumes == list()
-        cleanup_volume_types()
-        sleep(10)
-        volume_types = list(cinder_client.volume_types.findall())
-        assert volume_types == list()
-        cleanup_volume_backends()
+        logger.debug("cleanup_infiniboxes_from_cinder")
+        with httpd_logs_context(), keystone_logs_context(), cinder_logs_context(), var_log_messages_logs_context():
+            restart_openstack()
+            restart_apache()
+            cinder_client = cls.get_cinder_client()
+            cleanup_volumes()
+            sleep(10)
+            volumes = list(cinder_object.status for cinder_object in cinder_client.volumes.list())
+            assert volumes == list()
+            cleanup_volume_types()
+            sleep(10)
+            volume_types = list(cinder_client.volume_types.findall())
+            assert volume_types == list()
+            cleanup_volume_backends()
 
     @classmethod
     def setup_host(cls):
@@ -343,7 +392,7 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def setup_infinibox(cls):
-        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600)
+        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600*2)
         cls.system.purge()
         cls.infinisdk = cls.system.get_infinisdk()
 
@@ -378,21 +427,6 @@ class RealTestCaseMixin(object):
             purge(pool)
 
     @contextmanager
-    def cinder_logs_context(self):
-        with logs_context(CINDER_LOGDIR):
-            yield
-
-    @contextmanager
-    def iscsi_manager_logs_context(self):
-        with logs_context(ISCSIMANAGER_LOGDIR):
-            yield
-
-    @contextmanager
-    def var_log_messages_logs_context(self):
-        with logfile_context(VAR_LOG_MESSAGES):
-            yield
-
-    @contextmanager
     def cinder_context(self, infinisdk, pool, provisioning='thick', volume_backend_name=None):
         with config.get_config_parser(write_on_exit=True) as config_parser:
             key = config.apply(config_parser, self.infinisdk.get_name(), pool.get_name(), "admin", "123456",
@@ -405,7 +439,7 @@ class RealTestCaseMixin(object):
             config.update_volume_type(self.get_cinder_client(), key, self.infinisdk.get_name(), pool.get_name())
         restart_cinder()
         self.wait_for_type_creation(pool)
-        with self.cinder_logs_context(), self.iscsi_manager_logs_context(), self.var_log_messages_logs_context():
+        with cinder_logs_context(), iscsi_manager_logs_context(), var_log_messages_logs_context():
             yield
         with config.get_config_parser(write_on_exit=True) as config_parser:
             config.delete_volume_type(self.get_cinder_client(), key)
@@ -414,15 +448,20 @@ class RealTestCaseMixin(object):
         restart_cinder()
 
     @contextmanager
-    def rename_backend_context(self, address, pool_name, old_backend_name, new_backend_name):
+    def rename_backend_context(self, address, pool_id, old_backend_name, new_backend_name):
+        arguments = {"rename": True,
+                     "<management-address>": address,
+                     "<pool-id>": pool_id,
+                     "<new-volume-backend-name>": new_backend_name,
+                     "--commit": True,
+                     "--rc-file": RC_FILE}
         try:
-            with config.get_config_parser(write_on_exit=True) as config_parser:
-                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, old_backend_name, new_backend_name)
+            scripts.handle_commands(arguments, CONFIG_FILE)
             restart_cinder()
             yield
         finally:
-            with config.get_config_parser(write_on_exit=True) as config_parser:
-                config.rename_backend(get_cinder_client(), config_parser, address, pool_name, new_backend_name, old_backend_name)
+            arguments["<new-volume-backend-name>"] = old_backend_name
+            scripts.handle_commands(arguments, CONFIG_FILE)
             restart_cinder()
 
     def _recreate_cirros_image(self, glance):
@@ -453,7 +492,9 @@ class MockTestCaseMixin(object):
 
     @classmethod
     def selective_skip(cls):
-        pass
+        import os
+        if os.environ.get('SKIP_MOCK_TESTS', ''):
+            raise SkipTest("skipping mock test case")
 
     @classmethod
     def setup_host(cls):
@@ -662,10 +703,14 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
     @classmethod
     def _install_scst_for_current_kernel_or_skip_test(cls):
-        if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
-            "scst" in execute_assert_success(["lsmod"]).get_stdout():
-            # already installed
-            return
+        # check if already installed
+        if 'ubuntu' in get_platform_string():
+            if "iscsi_scst" in execute_assert_success(["lsmod"]).get_stdout():
+                return
+        else:
+            if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
+                "scst" in execute_assert_success(["lsmod"]).get_stdout():
+                return
         execute_assert_success("yum install -y svn || apt-get install -y subversion", shell=True)
         execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r`", shell=True)
         execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)
@@ -673,7 +718,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
         if 'ubuntu' in get_platform_string():
             execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
-        execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
+            execute_assert_success("stop tgt", shell=True)
+            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
+        else:
+            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
         execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
 
     @classmethod
@@ -686,17 +734,20 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         curl = execute_assert_success("curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -", shell=True)
         logger.debug(curl.get_stdout())
         logger.debug(curl.get_stderr())
-        logger.debug(execute_assert_success(["yum", "install", "-y", "iscsi-manager"]).get_stdout())
-        if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
-            execute(["/etc/init.d/tgtd", "stop"])
-        execute(["/etc/init.d/scst", "start"])
-        execute(["yum", "install", "-y", "lsscsi"])
+        logger.debug(execute_assert_success("yum install -y iscsi-manager || apt-get install -y iscsi-manager", shell=True).get_stdout())
+        if 'ubuntu' in get_platform_string():
+            execute_assert_success(["service", "scst", "start"])
+        else:
+            if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
+                execute(["/etc/init.d/tgtd", "stop"])
+            execute(["/etc/init.d/scst", "start"])
+        execute_assert_success("yum install -y lsscsi || apt-get install -y lsscsi", shell=True)
 
     @classmethod
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
         while true; do
-            iscsi-manager poll --lab-manual-zoning --with-traces &> /dev/null
+            iscsi-manager poll --lab-manual-zoning 2> /dev/null
             sleep {}
         done
         """
@@ -711,7 +762,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.get_api_addresses()[0][0], "infinidat", "123456"])
         node_id, port_id = cls.get_iscsi_port()
         execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
-        with logs_context(ISCSIMANAGER_LOGDIR):
+        with logs_context(ISCSIMANAGER_LOGDIR), var_log_messages_logs_context():
             execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
         cls.start_iscsi_manager()
 
@@ -768,7 +819,7 @@ class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
     @classmethod
     def start_iscsi_manager(cls):
         poll_script = """#!/bin/sh
-        iscsi-manager poll-infinite 3 --lab-manual-zoning --with-traces &> /dev/null
+        iscsi-manager poll-infinite 3 --lab-manual-zoning &> /dev/null
         """
         open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
         execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])

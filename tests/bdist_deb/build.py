@@ -23,8 +23,8 @@ def get_deb_package_name(package_name):
     package_name = "{}{}".format(PREFIX, package_name) if not package_name.startswith(PREFIX) else package_name
     return package_name.lower()
 
-def package_in_aptittude(deb_package_name):
-    return ' {} '.format(deb_package_name) in execute("aptitude search search {}".format(deb_package_name)).get_stdout()
+def package_in_apt_cache(deb_package_name):
+    return deb_package_name in execute("apt-cache search {}".format(deb_package_name)).get_stdout()
 
 def get_level1_dependencies(package_name):
     from infi.pypi_manager.depends import get_dependencies
@@ -119,8 +119,8 @@ def build_bdist_deb():
         dependencies = get_level1_dependencies(package_name)
         if package_name != get_name():
             deb_package_name = get_deb_package_name(package_name)
-            if package_in_aptittude(deb_package_name):
-                return
+            # if package_in_apt_cache(deb_package_name):
+            #     return
 
             compressed_egg_path = find_pacakge_in_cache_dist(package_name)
             temp_dir = tempfile.gettempdir()

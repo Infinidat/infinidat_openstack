@@ -317,12 +317,18 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                        iscsi=self._initialize_connection__iscsi)
         return self._handle_connection(methods, cinder_volume, connector)
 
+    def _get_or_create_lun(self, host, volume):
+        for logical_unit in host.get_luns():
+            if logical_unit.get_volume() == volume:
+                return logical_unit.get_lun()
+        return host.map_volume(volume).get_lun()
+
     def _initialize_connection__fc(self, cinder_volume, connector):
         infinidat_volume = self._find_volume(cinder_volume)
         for wwpn in connector[u'wwpns']:
             host = self._find_or_create_host_by_wwpn(wwpn)
             self._set_host_metadata(host)
-            lun = host.map_volume(infinidat_volume).get_lun()
+            lun = self._get_or_create_lun(host, infinidat_volume)
             access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
             target_wwn = [str(wwn) for wwn in self.system.components.fc_ports.get_online_target_addresses()]
 
@@ -338,7 +344,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         # we would like to compare before/after the map to make sure at least one target is aware of the map
         metadata_before_map = host.get_all_metadata()
 
-        lun = host.map_volume(infinidat_volume).get_lun()
+        lun = self._get_or_create_lun(host, infinidat_volume)
         LOG.info("Volume(name={0!r}, id={1}) mapped to Host (name={2!r}, id={3}) successfully".format(
                     infinidat_volume.get_name(), infinidat_volume.get_id(), host.get_name(), host.get_id()))
 

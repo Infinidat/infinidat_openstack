@@ -482,6 +482,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @infinisdk_to_cinder_exceptions
     def delete_snapshot(self, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
+        if infinidat_snapshot.has_children():
+            raise exception.SnapshotIsBusy(snapshot_name=translate(infinidat_snapshot.get_name()))
         infinidat_snapshot.delete()
 
     @logbook_compat

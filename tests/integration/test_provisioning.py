@@ -5,6 +5,10 @@ from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.pyutils.contexts import contextmanager
 from time import sleep
 
+try:
+    from cinder import exception
+except (ImportError, NameError):  # importing with just python hits NameError from the san module, the _ trick
+    from infinidat_openstack.cinder import mock as exception
 
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
@@ -128,6 +132,23 @@ class ProvisioningTestsMixin(object):
                         cinder_volume.manager.extend(cinder_clone, 2)  # https://bugs.launchpad.net/python-cinderclient/+bug/1293423
                         self.wait_for_object_extending_operation_to_complete(cinder_clone, 60)
                         self.assert_infinibox_volume_size(infinibox_clone, 2)
+
+    def test_delete_volume_with_snapshots(self):
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
+                    def delete_volume():
+                        self.delete_cinder_object(cinder_volume)
+                    self.assertRaises(exception.VolumeIsBusy, delete_volume)
+
+    def test_delete_snapshot_with_clones(self):
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
+                    with self.cinder_volume_from_snapshot_context(cinder_snapshot) as cinder_clone:
+                        def delete_snapshot():
+                            self.delete_cinder_object(cinder_snapshot)
+                        self.assertRaises(exception.SnapshotIsBusy, delete_snapshot)
 
     def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
         from capacity import GiB

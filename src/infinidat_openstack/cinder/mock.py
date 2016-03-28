@@ -13,5 +13,13 @@ class InvalidInput(Exception):
         super(InvalidInput, self).__init__(self, reason)
 
 
+class VolumeIsBusy(Exception):
+    def __init__(self, volume_name):
+        super(VolumeIsBusy, self).__init__(self, volume_name)
+
+class SnapshotIsBusy(Exception):
+    def __init__(self, snapshot_name):
+        super(SnapshotIsBusy, self).__init__(self, snapshot_name)
+
 def translate(message):
     return message

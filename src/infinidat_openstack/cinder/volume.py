@@ -263,8 +263,12 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             return
         metadata = infinidat_volume.get_all_metadata()
 
+        if infinidat_volume.has_children():
+            raise exception.VolumeIsBusy(volume_name=translate(infinidat_volume.get_name()))
+
         delete_parent = metadata.get("delete_parent", "false").lower() == "true"
         object_to_delete = infinidat_volume.get_parent() if delete_parent else infinidat_volume
+
         if self.configuration.infinidat_purge_volume_on_deletion:
             self._purge_infinidat_volume(object_to_delete)
         else:

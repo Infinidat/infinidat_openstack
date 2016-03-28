@@ -247,3 +247,11 @@ class ProvisioningTestsMixin_iSCSI_Real2(test_case.OpenStackISCSITestCase__Infin
 class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
     def _set_cinder_config_values(self, **kwargs):
         pass
+
+    def test_repeating_call_to_initialize_connection(self):
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_mapping_context(cinder_volume) as first_call:
+                    connector = self.get_connector()
+                    second_call = cinder_volume.initialize_connection(cinder_volume, connector)
+                    self.assertEquals(first_call, second_call)

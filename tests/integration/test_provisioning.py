@@ -134,6 +134,8 @@ class ProvisioningTestsMixin(object):
                         self.assert_infinibox_volume_size(infinibox_clone, 2)
 
     def test_delete_volume_with_snapshots(self):
+        if not isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the mock configuration")
         with self.provisioning_pool_context() as pool:
             with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                 with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
@@ -142,6 +144,8 @@ class ProvisioningTestsMixin(object):
                     self.assertRaises(exception.VolumeIsBusy, delete_volume)
 
     def test_delete_snapshot_with_clones(self):
+        if not isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the mock configuration")
         with self.provisioning_pool_context() as pool:
             with self.cinder_volume_context(1, pool=pool) as cinder_volume:
                 with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:

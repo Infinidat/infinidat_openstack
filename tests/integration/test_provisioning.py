@@ -249,7 +249,7 @@ class ProvisioningTestsMixin(object):
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume_1:
                     [infinibox_volume], _ = get_diff()
                     old_name = "infinibox-{}-pool-{}".format(self.infinisdk.get_serial(), pool.get_id())
-                    with self.rename_backend_context(self.infinisdk.get_api_addresses()[0][0], pool.get_id(), old_name, "bla"):
+                    with self.rename_backend_context(self.infinisdk.get_name(), pool.get_id(), old_name, "bla"):
                         sleep(30) # HACK: We wait after restarting cinder because this test doesn't pass somtimes
                         self.assertEquals(self.get_cinder_client().volume_types.findall()[0].get_keys()["volume_backend_name"], "bla")
                         with self.cinder_volume_context(1, pool=pool) as cinder_volume_2:

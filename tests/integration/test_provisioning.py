@@ -5,6 +5,10 @@ from infi.pyutils.retry import retry_func, WaitAndRetryStrategy
 from infi.pyutils.contexts import contextmanager
 from time import sleep
 
+try:
+    from cinder import exception
+except (ImportError, NameError):  # importing with just python hits NameError from the san module, the _ trick
+    from infinidat_openstack.cinder import mock as exception
 
 class ProvisioningTestsMixin(object):
     def test_volume_type_is_registered(self):
@@ -129,6 +133,27 @@ class ProvisioningTestsMixin(object):
                         self.wait_for_object_extending_operation_to_complete(cinder_clone, 60)
                         self.assert_infinibox_volume_size(infinibox_clone, 2)
 
+    def test_delete_volume_with_snapshots(self):
+        if not isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the mock configuration")
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
+                    def delete_volume():
+                        self.delete_cinder_object(cinder_volume)
+                    self.assertRaises(exception.VolumeIsBusy, delete_volume)
+
+    def test_delete_snapshot_with_clones(self):
+        if not isinstance(self, test_case.MockTestCaseMixin):
+            raise SkipTest("This test is meant to test the mock configuration")
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_snapshot_context(cinder_volume) as cinder_snapshot:
+                    with self.cinder_volume_from_snapshot_context(cinder_snapshot) as cinder_clone:
+                        def delete_snapshot():
+                            self.delete_cinder_object(cinder_snapshot)
+                        self.assertRaises(exception.SnapshotIsBusy, delete_snapshot)
+
     def assert_infinibox_volume_size(self, infinibox_volume, size_in_gb, timeout=30):
         from capacity import GiB
         @retry_func(WaitAndRetryStrategy(timeout, 1))
@@ -224,7 +249,7 @@ class ProvisioningTestsMixin(object):
                 with self.cinder_volume_context(1, pool=pool) as cinder_volume_1:
                     [infinibox_volume], _ = get_diff()
                     old_name = "infinibox-{}-pool-{}".format(self.infinisdk.get_serial(), pool.get_id())
-                    with self.rename_backend_context(self.infinisdk.get_api_addresses()[0][0], pool.get_id(), old_name, "bla"):
+                    with self.rename_backend_context(self.infinisdk.get_name(), pool.get_id(), old_name, "bla"):
                         sleep(30) # HACK: We wait after restarting cinder because this test doesn't pass somtimes
                         self.assertEquals(self.get_cinder_client().volume_types.findall()[0].get_keys()["volume_backend_name"], "bla")
                         with self.cinder_volume_context(1, pool=pool) as cinder_volume_2:
@@ -247,3 +272,11 @@ class ProvisioningTestsMixin_iSCSI_Real2(test_case.OpenStackISCSITestCase__Infin
 class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
     def _set_cinder_config_values(self, **kwargs):
         pass
+
+    def test_repeating_call_to_initialize_connection(self):
+        with self.provisioning_pool_context() as pool:
+            with self.cinder_volume_context(1, pool=pool) as cinder_volume:
+                with self.cinder_mapping_context(cinder_volume) as first_call:
+                    connector = self.get_connector()
+                    second_call = cinder_volume.initialize_connection(cinder_volume, connector)
+                    self.assertEquals(first_call, second_call)

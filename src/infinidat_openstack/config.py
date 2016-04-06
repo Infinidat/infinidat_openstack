@@ -131,11 +131,16 @@ def remove(config_parser, key):
 def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
     import sys
     from infinisdk import InfiniBox
+    from infinisdk.core.exceptions import SystemNotFoundException
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
-    system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    try:
+        system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    except SystemNotFoundException:
+        system = None
     if system is None:
         print("Could not connect to system \"{}\"".format(pool_name), file=sys.stderr)
         raise SystemExit(1)
+    system.login()
     raise_if_unsupported(get_system_version(address, username, password, system))
     pool = system.pools.safe_get(name=pool_name)
     if pool is None:

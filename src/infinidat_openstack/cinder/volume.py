@@ -187,7 +187,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
                                       unmask(self.configuration.san_password) if \
                                       is_masked(self.configuration.san_password) else \
                                       self.configuration.san_password))
-
+        self.system.login()
         try:
             self._get_pool()  # we want to search for the pool here so we fail if we can't find it.
         except (ObjectNotFound, exception.InvalidInput):

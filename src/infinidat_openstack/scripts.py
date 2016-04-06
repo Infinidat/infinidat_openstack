@@ -207,6 +207,7 @@ def get_infinisdk_from_arguments(arguments):
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(arguments.address, use_ssl=True, auth=(arguments.username, arguments.password))
+    system.login()
     raise_if_unsupported(get_system_version(arguments.address, arguments.username, arguments.password, system))
     return system
 

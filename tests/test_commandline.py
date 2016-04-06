@@ -11,19 +11,19 @@ import sys
 logger = getLogger(__name__)
 
 EXPECTED_OUTPUT = """
-+--------------------------------------+----------+---------+----------------------+---------------+--------------------------------------+---------+---------------------------------------+
-|               address                | username | enabled |        status        | system serial |             system name              | pool id |               pool name               |
-+--------------------------------------+----------+---------+----------------------+---------------+--------------------------------------+---------+---------------------------------------+
++------------------------------------------------+----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
+|                    address                     | username | enabled |        status        | system serial |                  system name                   | pool id |               pool name               |
++------------------------------------------------+----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
 | {system_name} |  admin   |   True  | connection successul |     {system_serial}     | {system_name} |   {pool_id}  | {pool_name} |
-+--------------------------------------+----------+---------+----------------------+---------------+--------------------------------------+---------+---------------------------------------+
++------------------------------------------------+----------+---------+----------------------+---------------+------------------------------------------------+---------+---------------------------------------+
 """
 
 EXPECTED_FAILURE = """
-+--------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
-|               address                | username | enabled | status | system serial | system name | pool id | pool name |
-+--------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
++------------------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
+|                    address                     | username | enabled | status | system serial | system name | pool id | pool name |
++------------------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
 | {system_name} |  admin   |   True  | error  |      n/a      |     n/a     |   {pool_id}  |    n/a    |
-+--------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
++------------------------------------------------+----------+---------+--------+---------------+-------------+---------+-----------+
 """
 
 class CommandlineTestsMixin(object):
@@ -220,8 +220,10 @@ class MockInfiniBoxMixin(InfiniboxMixin):
         from infinisdk import InfiniBox
         cls.simulator = Simulator()
         cls.simulator.set_serial(12345)
+        cls.simulator.set_version('2.2')
         cls.simulator.activate()
         cls.infinisdk = InfiniBox(cls.simulator, auth=('admin', '123456'))
+        cls.infinisdk.login()
 
     @classmethod
     def teardown_infinibox(cls):
@@ -286,8 +288,11 @@ class MockTestCase(CommandlineTestsMixin, MockInfiniBoxMixin, TestCase):
         from infinisdk import InfiniBox
         def infinisdk_side_effect(address, use_ssl, auth=("admin", "123456")):
             if address == self.infinisdk.get_name():
-                return InfiniBox(self.simulator, auth=auth)
-            InfiniBox(address, auth=auth)
+                instance = InfiniBox(self.simulator, auth=auth)
+            else:
+                instance = InfiniBox(address, auth=auth)
+            instance.login()
+            return instance
         with patch("infinisdk.InfiniBox", side_effect=infinisdk_side_effect) as infinisdk:
             with patch("cinderclient.v1.client.Client"):
                 yield

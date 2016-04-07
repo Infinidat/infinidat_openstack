@@ -333,7 +333,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             host = self._find_or_create_host_by_wwpn(wwpn)
             self._set_host_metadata(host)
             lun = self._get_or_create_lun(host, infinidat_volume)
-            access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+            access_mode = 'ro' if infinidat_volume.is_write_protected() else 'rw'
             target_wwn = [str(wwn) for wwn in self.system.components.fc_ports.get_online_target_addresses()]
 
         # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
@@ -358,7 +358,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         iscsi_target_metadata = target_host.get_all_metadata()
         target_iqn = iscsi_target_metadata.get('iscsi_manager_iqn')
         target_portal = iscsi_target_metadata.get('iscsi_manager_portal')
-        access_mode = 'ro' if infinidat_volume.get_write_protected() else 'rw'
+        access_mode = 'ro' if infinidat_volume.is_write_protected() else 'rw'
 
         # the interface states we need to return iSCSI target info but we have several
         # so we just return one that we know that mapped the volume to the client

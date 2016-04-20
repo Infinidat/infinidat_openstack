@@ -38,6 +38,10 @@ def find_pacakge_in_cache_dist(package_name):
     for filename in os.listdir(cache_dist_dir):
         if not filename.lower().replace("-", "_").startswith(package_name.replace("-", "_").lower()):
             continue
+        # package-<version>
+        prefix = os.path.basename(filename).lower().replace("-", "_").replace(package_name.replace("-", "_").lower(), '')
+        if prefix[0] != '_' or not prefix[1].isdigit():
+            continue
         for extension in extensions:
             if filename.endswith(extension):
                 return os.path.join(cache_dist_dir, filename)

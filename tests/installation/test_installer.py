@@ -3,6 +3,10 @@ from unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
 from infi.execute import execute_assert_success
 from infi.os_info import get_platform_string
+from logging import getLogger
+
+
+logger = getLogger(__name__)
 
 
 def shorten_version(long_version):
@@ -67,7 +71,7 @@ class RPMTestCase(TestCase, InstallerMixin):
         from glob import glob
         import infinidat_openstack.__version__
         command = ["bin/python", "tests/bdist_rpm/build.py"]
-        logge.info("running {}".format(command))
+        logger.info("running {}".format(command))
         pid = execute_assert_success(command)
         logger.info("output: {}".format(pid.get_stdout()))
         reload(infinidat_openstack.__version__)
@@ -113,7 +117,7 @@ class DEBTestCase(TestCase, InstallerMixin):
         from glob import glob
         import infinidat_openstack.__version__
         command = "PATH=/usr/bin:$PATH bin/python tests/bdist_deb/build.py"
-        logge.info("running {}".format(command))
+        logger.info("running {}".format(command))
         pid = execute_assert_success(command, shell=True)
         logger.info("output: {}".format(pid.get_stdout()))
         reload(infinidat_openstack.__version__)

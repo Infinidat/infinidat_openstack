@@ -49,6 +49,7 @@ class InstallerMixin(object):
     def build_two_packages(self):
         first = self.build()
         execute_assert_success(["git", "commit", "--allow-empty", "--message", "testing package upgrade"])
+        execute_assert_success(["bin/buildout", "buildout:develop=", "install", "setup.py", "__version__.py"])
         def _revert():
             execute_assert_success(["git", "reset", "--hard", "HEAD^"])
             execute_assert_success(["bin/buildout", "buildout:develop=", "install", "setup.py", "__version__.py"])

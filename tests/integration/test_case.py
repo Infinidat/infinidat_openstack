@@ -727,7 +727,7 @@ class OpenStackISCSITestCase(OpenStackTestCase):
                 return
         execute_assert_success("yum install -y svn || apt-get install -y subversion", shell=True)
         execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r`", shell=True)
-        execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst-trunk", shell=True)
+        execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk@6889 scst-trunk", shell=True)
         execute_assert_success("cd scst-trunk/scst && make && make install && modprobe scst && modprobe scst_raid && modprobe scst_disk", shell=True)
         execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
         if 'ubuntu' in get_platform_string():

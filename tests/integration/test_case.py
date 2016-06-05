@@ -676,8 +676,29 @@ class MockTestCaseMixin(object):
 
 class OpenStackISCSITestCase(OpenStackTestCase):
     ENV_VAR_TO_SKIP = "SKIP_ISCSI_TESTS"
-    ISCSI_GW_SLEEP_TIME = 1
     prefer_fc = False
+
+    @classmethod
+    def setup_infinibox(cls):
+        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600*2,
+                                                                  labels=['ci-ready', 'iscsi'])
+        cls.system.purge()
+        cls.infinisdk = cls.system.get_infinisdk()
+
+    @classmethod
+    def setUpClass(cls):
+        super(OpenStackISCSITestCase, cls).setUpClass()
+        cls.iscsi.connect(cls.infinisdk) # TODO perhaps we shouldn't login here
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.iscsi.disconnect(cls.infinisdk)
+        super(OpenStackISCSITestCase, cls).tearDownClass()
+
+    @classmethod
+    def get_iscsi_initiator(cls):
+        import re
+        return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
 
     def get_connector(self):
         return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
@@ -685,134 +706,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
                          ip='127.0.0.1',
                          wwns=None,
                          wwpns=None)
-
-    @classmethod
-    def get_iscsi_initiator(cls):
-        import re
-        return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
-
-    @classmethod
-    def setUpClass(cls):
-        super(OpenStackISCSITestCase, cls).setUpClass()
-        cls.install_iscsi_manager()
-        cls.configure_iscsi_manager()
-        cls.iscsi_manager_poll()
-        cls.connect_to_iscsi_manager()
-        cls.iscsi_manager_poll()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.disconnect_from_iscsi_manager()
-        cls.destroy_iscsi_manager_configuration()
-        super(OpenStackISCSITestCase, cls).tearDownClass()
-
-    @classmethod
-    def connect_to_iscsi_manager(cls):
-        execute_assert_success(["iscsiadm", "-m", "discovery" , "-t" ,"sendtargets", "-p", gethostbyname(gethostname())])
-        execute_assert_success(["iscsiadm", "-m", "node" , "-L" ,"all"])
-
-    @classmethod
-    def disconnect_from_iscsi_manager(cls):
-        execute(["iscsiadm", "-m", "node" , "-U" ,"all"])
-
-    @classmethod
-    def _install_scst_for_current_kernel_or_skip_test(cls):
-        # check if already installed
-        if 'ubuntu' in get_platform_string():
-            if "iscsi_scst" in execute_assert_success(["lsmod"]).get_stdout():
-                return
-        else:
-            if "iscsi-scstd" in execute_assert_success(["ps", "aux"]).get_stdout() and \
-                "scst" in execute_assert_success(["lsmod"]).get_stdout():
-                return
-        execute_assert_success("yum install -y svn || apt-get install -y subversion", shell=True)
-        execute_assert_success("yum install -y kernel-devel-`uname -r` || apt-get install -y linux-headers-`uname -r`", shell=True)
-        execute_assert_success("svn checkout svn://svn.code.sf.net/p/scst/svn/trunk@6889 scst-trunk", shell=True)
-        execute_assert_success("cd scst-trunk/scst && make && make install && modprobe scst && modprobe scst_raid && modprobe scst_disk", shell=True)
-        execute_assert_success("cd scst-trunk/iscsi-scst && make && make install", shell=True)
-        if 'ubuntu' in get_platform_string():
-            execute_assert_success("/sbin/depmod -b / -a `uname -r` || true", shell=True)
-            execute_assert_success("stop tgt", shell=True)
-            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
-        else:
-            execute_assert_success("modprobe iscsi-scst && iscsi-scstd", shell=True)
-        execute_assert_success("cd scst-trunk/scstadmin && make && make install", shell=True)
-
-    @classmethod
-    def install_iscsi_manager(cls):
-        from glob import glob
-        from os import remove
-        for filepath in list(glob("/etc/yum.repos.d/*iscsi*")):
-            remove(filepath)
-        cls._install_scst_for_current_kernel_or_skip_test()
-        curl = execute_assert_success("curl http://repo.lab.il.infinidat.com/setup/iscsi-gateway-develop | sudo sh -", shell=True)
-        logger.debug(curl.get_stdout())
-        logger.debug(curl.get_stderr())
-        logger.debug(execute_assert_success("yum install -y iscsi-manager || apt-get install -y iscsi-manager", shell=True).get_stdout())
-        if 'ubuntu' in get_platform_string():
-            execute_assert_success(["service", "scst", "start"])
-        else:
-            if path.exists("/etc/init.d/tgtd"): # does not exist on redhat-7
-                execute(["/etc/init.d/tgtd", "stop"])
-            execute(["/etc/init.d/scst", "start"])
-        execute_assert_success("yum install -y lsscsi || apt-get install -y lsscsi", shell=True)
-
-    @classmethod
-    def start_iscsi_manager(cls):
-        poll_script = """#!/bin/sh
-        while true; do
-            iscsi-manager poll --lab-manual-zoning 2> /dev/null
-            sleep {}
-        done
-        """
-        open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
-        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
-        execute_async(["sh", "./iscsi-poll.sh"])
-
-    @classmethod
-    def configure_iscsi_manager(cls):
-        cls.destroy_iscsi_manager_configuration()
-        execute_assert_success(["iscsi-manager", "config", "init"])
-        execute_assert_success(["iscsi-manager", "config", "set", "system", cls.infinisdk.get_api_addresses()[0][0], "infinidat", "123456"])
-        node_id, port_id = cls.get_iscsi_port()
-        execute_assert_success(["iscsi-manager", "config", "add", "target", gethostbyname(gethostname()), str(node_id), str(port_id)])
-        with logs_context(ISCSIMANAGER_LOGDIR), var_log_messages_logs_context():
-            execute_assert_success(["iscsi-manager", "poll", "--lab-manual-zoning"]) # lets run this once to see it is working
-        cls.start_iscsi_manager()
-
-    @classmethod
-    def get_iscsi_port(cls):
-        from infi.storagemodel.vendor.infinidat.shortcuts import get_infinidat_storage_controller_devices
-
-        fc_port = get_infinidat_storage_controller_devices()[0].get_vendor().get_fc_port()
-        return fc_port.get_node_id(), fc_port.get_port_id()
-
-    @classmethod
-    def iscsi_manager_poll(cls):
-        sleep(cls.ISCSI_GW_SLEEP_TIME+5)
-
-    @classmethod
-    def destroy_iscsi_manager_configuration(cls):
-        execute(['pkill -f "sh ./iscsi-poll.sh"'], shell=True)
-        logger.debug("killed iscsi-manager")
-        execute(["rm", "-rf", "./iscsi-poll.sh"])
-        execute(["killall", "iscsi-manager"])
-        execute(["rm","-rf","./poll.lock"])
-        cls.delete_npiv_ports_created_by_iscsi_manager()
-
-    @classmethod
-    def delete_npiv_ports_created_by_iscsi_manager(cls):
-        import os
-        FC_HOST_DIR = '/sys/class/fc_host'
-        virtual_fc_hosts = [host for host in os.listdir(FC_HOST_DIR)
-            if 'NPIV VPORT' in open(os.path.join(FC_HOST_DIR, host, 'port_type')).read()]
-        physical_fc_host = [host for host in os.listdir(FC_HOST_DIR)
-            if 'NPIV VPORT' not in open(os.path.join(FC_HOST_DIR, host, 'port_type')).read()][0]
-        vport_delete_file_name = os.path.join(FC_HOST_DIR, physical_fc_host, 'vport_delete')
-        for virtual_fc_host in virtual_fc_hosts:
-            port_name = open(os.path.join(FC_HOST_DIR, virtual_fc_host, 'port_name')).read().strip().strip('0x')
-            node_name = open(os.path.join(FC_HOST_DIR, virtual_fc_host, 'node_name')).read().strip().strip('0x')
-            open(vport_delete_file_name,'w').write('{}:{}'.format(node_name, port_name))
 
 
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
@@ -826,15 +719,3 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
                          ip='127.0.0.1',
                          wwns=wwns,
                          wwpns=wwns)
-
-
-class OpenStackISCSITestCase__InfinitePolling(OpenStackISCSITestCase):
-
-    @classmethod
-    def start_iscsi_manager(cls):
-        poll_script = """#!/bin/sh
-        iscsi-manager poll-infinite 3 --lab-manual-zoning &> /dev/null
-        """
-        open("./iscsi-poll.sh", 'w').write(poll_script.format(cls.ISCSI_GW_SLEEP_TIME))
-        execute_assert_success(["chmod", "+x", "./iscsi-poll.sh"])
-        execute_async(["sh", "./iscsi-poll.sh"])

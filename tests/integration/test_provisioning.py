@@ -265,7 +265,7 @@ class ProvisioningTestsMixin_iSCSI_Real(test_case.OpenStackISCSITestCase, test_c
     pass
 
 
-class ProvisioningTestsMixin_Mock(test_case.OpenStackFibreChannelTestCase, test_case.MockTestCaseMixin, ProvisioningTestsMixin):
+class ProvisioningTestsMixin_Mock(test_case.MockTestCaseMixin, ProvisioningTestsMixin):
     def _set_cinder_config_values(self, **kwargs):
         pass
 

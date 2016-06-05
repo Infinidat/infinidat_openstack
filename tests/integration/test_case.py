@@ -204,7 +204,6 @@ class OpenStackTestCase(TestCase):
         cls.selective_skip()
         cls.setup_host()
         cls.setup_infinibox()
-        cls.zone_localhost_with_infinibox()
 
     @classmethod
     def tearDownClass(cls):
@@ -492,7 +491,7 @@ class RealTestCaseMixin(object):
         return image
 
 
-class MockTestCaseMixin(object):
+class MockTestCaseMixin(OpenStackFibreChannelTestCase):
     get_cinder_client = MagicMock()
     volume_driver_by_type = {}
     volumes = {}
@@ -522,7 +521,6 @@ class MockTestCaseMixin(object):
     def setup_infinibox(cls):
         cls.infinisdk = cls.smock.get_inventory().add_infinibox()
         cls.apply_cinder_patches()
-        cls.zone_localhost_with_infinibox()
 
     @classmethod
     def zone_localhost_with_infinibox(cls):
@@ -691,10 +689,6 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         super(OpenStackISCSITestCase, cls).tearDownClass()
 
     @classmethod
-    def zone_localhost_with_infinibox(cls):
-        pass
-
-    @classmethod
     def get_iscsi_initiator(cls):
         import re
         return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
@@ -710,6 +704,11 @@ class OpenStackISCSITestCase(OpenStackTestCase):
 
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
     ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
+
+    @classmethod
+    def setUpClass(cls):
+        super(OpenStackFibreChannelTestCase, cls).setUpClass()
+        cls.zone_localhost_with_infinibox()
 
     def get_connector(self):
         from infi.hbaapi import get_ports_collection

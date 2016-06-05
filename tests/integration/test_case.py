@@ -491,6 +491,65 @@ class RealTestCaseMixin(object):
         return image
 
 
+class OpenStackISCSITestCase(OpenStackTestCase):
+    ENV_VAR_TO_SKIP = "SKIP_ISCSI_TESTS"
+    prefer_fc = False
+
+    @classmethod
+    def setup_infinibox(cls):
+        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600*2,
+                                                                  labels=['ci-ready', 'iscsi'])
+        cls.system.purge()
+        cls.infinisdk = cls.system.get_infinisdk()
+
+    @classmethod
+    def setUpClass(cls):
+        super(OpenStackISCSITestCase, cls).setUpClass()
+        cls.iscsi.connect(cls.infinisdk) # TODO perhaps we shouldn't login here
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.iscsi.disconnect(cls.infinisdk)
+        super(OpenStackISCSITestCase, cls).tearDownClass()
+
+    @classmethod
+    def get_iscsi_initiator(cls):
+        import re
+        return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
+
+    def get_connector(self):
+        return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
+                         host=gethostname(),
+                         ip='127.0.0.1',
+                         wwns=None,
+                         wwpns=None)
+
+
+
+class OpenStackFibreChannelTestCase(OpenStackTestCase):
+    ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
+
+    @classmethod
+    def setUpClass(cls):
+        super(OpenStackFibreChannelTestCase, cls).setUpClass()
+        cls.zone_localhost_with_infinibox()
+
+    def get_connector(self):
+        from infi.hbaapi import get_ports_collection
+        fc_ports = get_ports_collection().get_ports()
+        wwns = [str(port.port_wwn) for port in fc_ports]
+        return dict(initiator=None,
+                         host=gethostname(),
+                         ip='127.0.0.1',
+                         wwns=wwns,
+                         wwpns=wwns)
+
+    @classmethod
+    def zone_localhost_with_infinibox(cls):
+        cls.zoning.purge_all_related_zones()
+        cls.zoning.zone_host_with_system__single_path(cls.system)
+
+
 class MockTestCaseMixin(OpenStackFibreChannelTestCase):
     get_cinder_client = MagicMock()
     volume_driver_by_type = {}
@@ -665,62 +724,3 @@ class MockTestCaseMixin(OpenStackFibreChannelTestCase):
                       u'min_disk': 0, u'is_public': True, u'deleted_at': None,
                       u'id': u'd8b8a450-46e4-4428-935e-aec82925c262',
                       u'size': 13147648})
-
-
-class OpenStackISCSITestCase(OpenStackTestCase):
-    ENV_VAR_TO_SKIP = "SKIP_ISCSI_TESTS"
-    prefer_fc = False
-
-    @classmethod
-    def setup_infinibox(cls):
-        cls.system = cls.system_factory.allocate_infinidat_system(expiration_in_seconds=3600*2,
-                                                                  labels=['ci-ready', 'iscsi'])
-        cls.system.purge()
-        cls.infinisdk = cls.system.get_infinisdk()
-
-    @classmethod
-    def setUpClass(cls):
-        super(OpenStackISCSITestCase, cls).setUpClass()
-        cls.iscsi.connect(cls.infinisdk) # TODO perhaps we shouldn't login here
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.iscsi.disconnect(cls.infinisdk)
-        super(OpenStackISCSITestCase, cls).tearDownClass()
-
-    @classmethod
-    def get_iscsi_initiator(cls):
-        import re
-        return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
-
-    def get_connector(self):
-        return dict(initiator=OpenStackISCSITestCase.get_iscsi_initiator(),
-                         host=gethostname(),
-                         ip='127.0.0.1',
-                         wwns=None,
-                         wwpns=None)
-
-
-
-class OpenStackFibreChannelTestCase(OpenStackTestCase):
-    ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
-
-    @classmethod
-    def setUpClass(cls):
-        super(OpenStackFibreChannelTestCase, cls).setUpClass()
-        cls.zone_localhost_with_infinibox()
-
-    def get_connector(self):
-        from infi.hbaapi import get_ports_collection
-        fc_ports = get_ports_collection().get_ports()
-        wwns = [str(port.port_wwn) for port in fc_ports]
-        return dict(initiator=None,
-                         host=gethostname(),
-                         ip='127.0.0.1',
-                         wwns=wwns,
-                         wwpns=wwns)
-
-    @classmethod
-    def zone_localhost_with_infinibox(cls):
-        cls.zoning.purge_all_related_zones()
-        cls.zoning.zone_host_with_system__single_path(cls.system)

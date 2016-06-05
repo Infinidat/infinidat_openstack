@@ -28,6 +28,9 @@ def get_system_version(address, username, password, system):
 
 
 def is_supported(infinibox_version):
+    # To handle stuff like: 3.0.0.3-iscsi-108-i
+    infinibox_version = infinibox_version.split('-')[0]
+
     v = parse_version(infinibox_version)
     return FIRST_SUPPORTED_VERSION <= v < FIRST_UNSUPPORTED_VERSION
 

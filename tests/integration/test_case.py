@@ -409,11 +409,6 @@ class RealTestCaseMixin(object):
         cls.infinisdk = cls.system.get_infinisdk()
 
     @classmethod
-    def zone_localhost_with_infinibox(cls):
-        cls.zoning.purge_all_related_zones()
-        cls.zoning.zone_host_with_system__single_path(cls.system)
-
-    @classmethod
     def teardown_infinibox(cls):
         try:
             cls.system.release()
@@ -696,6 +691,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
         super(OpenStackISCSITestCase, cls).tearDownClass()
 
     @classmethod
+    def zone_localhost_with_infinibox(cls):
+        pass
+
+    @classmethod
     def get_iscsi_initiator(cls):
         import re
         return re.findall('InitiatorName=(.+)', open('/etc/iscsi/initiatorname.iscsi').read())[0]
@@ -708,8 +707,10 @@ class OpenStackISCSITestCase(OpenStackTestCase):
                          wwpns=None)
 
 
+
 class OpenStackFibreChannelTestCase(OpenStackTestCase):
     ENV_VAR_TO_SKIP = "SKIP_FC_TESTS"
+
     def get_connector(self):
         from infi.hbaapi import get_ports_collection
         fc_ports = get_ports_collection().get_ports()
@@ -719,3 +720,8 @@ class OpenStackFibreChannelTestCase(OpenStackTestCase):
                          ip='127.0.0.1',
                          wwns=wwns,
                          wwpns=wwns)
+
+    @classmethod
+    def zone_localhost_with_infinibox(cls):
+        cls.zoning.purge_all_related_zones()
+        cls.zoning.zone_host_with_system__single_path(cls.system)

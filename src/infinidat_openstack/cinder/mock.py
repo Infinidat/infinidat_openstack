@@ -3,6 +3,9 @@ class VolumeDriver(object):
         super(VolumeDriver, self).__init__()
         self.configuration = kwargs.get('configuration', None)
 
+    def get_version(self):
+        return self.VERSION
+
 
 class CinderException(Exception):
     pass

@@ -3,7 +3,7 @@ try:
 except ImportError:
     from oslo.config import cfg
 try:
-    from cinder.openstack.common.gettextutils import _ as translate
+    from cinder.i18n import _ as translate
     from cinder.volume import driver
     from cinder import exception
 except (ImportError, NameError):  # importing with just python hits NameError from the san module, the _ trick

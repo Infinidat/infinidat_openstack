@@ -584,7 +584,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         data["volume_backend_name"] = self.volume_backend_name
         data["vendor_name"] = STATS_VENDOR
         data["driver_version"] = self.VERSION
-        data["storage_protocol"] = 'FC' in self.configuration.infinidat_prefer_fc else 'iSCSI'
+        data["storage_protocol"] = 'FC' if self.configuration.infinidat_prefer_fc else 'iSCSI'
         data["consistencygroup_support"] = 'True'
 
         try:

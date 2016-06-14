@@ -2,7 +2,7 @@
 
 Usage:
     infini-openstack [options] volume-backend list
-    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning] [--volume-backend-name=volume_backend_name]
+    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning] [--volume-backend-name=volume_backend_name] [--protocol=<protocol>]
     infini-openstack [options] volume-backend remove <management-address> <pool-id>
     infini-openstack [options] volume-backend enable <management-address> <pool-id>
     infini-openstack [options] volume-backend disable <management-address> <pool-id>
@@ -26,6 +26,7 @@ Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --commit                             commit the changes into cinder's configuration file (also erases the comments inside it)
+    --protocol                           preferred protocol: fc or iscsi [default: iscsi]
 """
 
 
@@ -95,7 +96,8 @@ def volume_backend_set(config_parser, cinder_client, arguments):
                        arguments.username,
                        arguments.password,
                        volume_backend_name,
-                       arguments.get("--thick-provisioning"))
+                       arguments.get("--thick-provisioning"),
+                       arguments.get("--protocol", "iscsi").lower() == 'fc')
     if volume_backend_name and key != volume_backend_name:
         print("This InfiniBox is already configured with a different backend name: {}. "
               "Please use the rename options instead of --volume-backend-name".format(key), file=sys.stderr)

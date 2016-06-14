@@ -26,7 +26,7 @@ Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --commit                             commit the changes into cinder's configuration file (also erases the comments inside it)
-    --protocol                           preferred protocol: fc or iscsi [default: iscsi]
+    --protocol=<protocol>                preferred protocol: fc or iscsi [default: iscsi]
 """
 
 

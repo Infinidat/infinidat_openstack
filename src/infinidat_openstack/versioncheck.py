@@ -3,7 +3,7 @@ from infinidat_openstack.__version__ import __version__
 from infinidat_openstack.exceptions import UserException
 
 FIRST_SUPPORTED_VERSION = parse_version('1.5')
-FIRST_UNSUPPORTED_VERSION = parse_version('2.3')
+FIRST_UNSUPPORTED_VERSION = parse_version('3.1')
 
 
 class UnsupportedVersion(UserException):
@@ -28,6 +28,9 @@ def get_system_version(address, username, password, system):
 
 
 def is_supported(infinibox_version):
+    # To handle stuff like: 3.0.0.3-iscsi-108-i
+    infinibox_version = infinibox_version.split('-')[0]
+
     v = parse_version(infinibox_version)
     return FIRST_SUPPORTED_VERSION <= v < FIRST_UNSUPPORTED_VERSION
 

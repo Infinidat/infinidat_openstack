@@ -50,8 +50,13 @@ def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
                 parser.write(fd)
 
 
+try:
+    from cinder.volume.drivers.infinidat import InfiniboxVolumeDriver
+    VOLUME_DRIVER = "cinder.volume.drivers.infinidat.InfiniboxVolumeDriver"
+except ImportError:
+    VOLUME_DRIVER = "infinidat_openstack.cinder.InfiniboxVolumeDriver"
+
 ENABLED_BACKENDS = dict(section="DEFAULT", option="enabled_backends")
-VOLUME_DRIVER = "infinidat_openstack.cinder.InfiniboxVolumeDriver"
 SETTINGS = [
     ("address", "san_ip"),
     ("pool_id", "infinidat_pool_id"),

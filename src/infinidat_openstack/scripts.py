@@ -73,7 +73,7 @@ def volume_backend_list(config_parser, cinder_client, arguments):
     table = PrettyTable(TABLE_HEADER)  # v0.6.1 installed by openstack does not print empty tables
     backends = get_enabled_backends(config_parser)
     for volume_backend in volume_backends:
-        status = "connection successul"
+        status = "connection successful"
         system_serial = system_name = pool_name = 'n/a'
         try:
             infinisdk = get_infinisdk_for_volume_backend(volume_backend)

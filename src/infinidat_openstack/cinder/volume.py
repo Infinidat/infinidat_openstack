@@ -344,7 +344,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
 
         return dict(driver_volume_type='iscsi',
                     data=dict(
-                              target_discovered=False,
+                              target_discovered=True,
                               volume_id=cinder_volume.id,
                               access_mode=access_mode,
                               target_portal=target_portal,

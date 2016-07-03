@@ -430,7 +430,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             })
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_child(name=self._create_volume_name(tgt_cinder_volume))
-        tgt_infinidat_volume.update_size(tgt_cinder_volume.size)
+        tgt_infinidat_volume.update_size(tgt_cinder_volume.size * GiB)
         tgt_infinidat_volume.disable_write_protection()
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
             cinder_cg = tgt_cinder_volume.consistencygroup

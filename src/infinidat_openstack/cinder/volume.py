@@ -418,8 +418,9 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @logbook_compat
     @infinisdk_to_cinder_exceptions
     def create_cloned_volume(self, tgt_cinder_volume, src_cinder_volume):
-        if tgt_cinder_volume.size != src_cinder_volume.size:
-            raise exception.InvalidInput(reason=translate("cannot create a cloned volume with size different from source"))
+        if tgt_cinder_volume.size < src_cinder_volume.size:
+            msg = "cannot shrink clone. original size={}, target size={}".format(src_cinder_volume.size, tgt_cinder_volume.size)
+            raise exception.InvalidInput(reason=translate(msg))
         src_infinidat_volume = self._find_volume(src_cinder_volume)
         # We first create a snapshot and then a clone from that snapshot.
         snapshot = src_infinidat_volume.create_snapshot(name=self._create_snapshot_name(src_cinder_volume) + "-internal")
@@ -429,6 +430,7 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             })
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_child(name=self._create_volume_name(tgt_cinder_volume))
+        tgt_infinidat_volume.update_size(tgt_cinder_volume.size)
         tgt_infinidat_volume.disable_write_protection()
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
             cinder_cg = tgt_cinder_volume.consistencygroup
@@ -449,7 +451,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
         new_size_in_bytes = new_size * GiB
         if infinidat_volume.get_size() != new_size_in_bytes:
             if infinidat_volume.get_size() > new_size_in_bytes:
-                raise exception.InvalidInput(reason=translate("cannot resize volume: new size must be greater or equal to current size"))
+                msg = "cannot shrink volume: new size must be greater or equal to current size. original size={}, new size={}"
+                raise exception.InvalidInput(reason=translate(msg.format(infinidat_volume.get_size(), new_size_in_bytes)))
             infinidat_volume.update_size(new_size_in_bytes)
 
     @logbook_compat

@@ -401,9 +401,11 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
     @infinisdk_to_cinder_exceptions
     def create_volume_from_snapshot(self, cinder_volume, cinder_snapshot):
         infinidat_snapshot = self._find_snapshot(cinder_snapshot)
-        if cinder_volume.size * GiB != infinidat_snapshot.get_size():
-            raise exception.InvalidInput(reason=translate("cannot create a volume with size different than its snapshot"))
+        if cinder_volume.size * GiB < infinidat_snapshot.get_size():
+            msg = "cannot shrink snapshot. original size={}, target size={}".format(infinidat_snapshot.get_size(), cinder_volume.size * GiB)
+            raise exception.InvalidInput(reason=translate(msg))
         infinidat_volume = infinidat_snapshot.create_child(name=self._create_volume_name(cinder_volume))
+        infinidat_volume.update_size(cinder_volume.size * GiB)
         infinidat_volume.disable_write_protection()
         if hasattr(cinder_volume, 'consistencygroup') and cinder_volume.consistencygroup:
             cinder_cg = cinder_volume.consistencygroup

@@ -405,8 +405,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             msg = "cannot shrink snapshot. original size={}, target size={}".format(infinidat_snapshot.get_size(), cinder_volume.size * GiB)
             raise exception.InvalidInput(reason=translate(msg))
         infinidat_volume = infinidat_snapshot.create_child(name=self._create_volume_name(cinder_volume))
-        infinidat_volume.update_size(cinder_volume.size * GiB)
         infinidat_volume.disable_write_protection()
+        infinidat_volume.update_size(cinder_volume.size * GiB)
         if hasattr(cinder_volume, 'consistencygroup') and cinder_volume.consistencygroup:
             cinder_cg = cinder_volume.consistencygroup
             self._add_volume_to_cg(infinidat_volume, cinder_cg)
@@ -432,8 +432,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             })
         # We now create a clone from the snapshot
         tgt_infinidat_volume = snapshot.create_child(name=self._create_volume_name(tgt_cinder_volume))
-        tgt_infinidat_volume.update_size(tgt_cinder_volume.size * GiB)
         tgt_infinidat_volume.disable_write_protection()
+        tgt_infinidat_volume.update_size(tgt_cinder_volume.size * GiB)
         if hasattr(tgt_cinder_volume, "consistencygroup") and tgt_cinder_volume.consistencygroup:
             cinder_cg = tgt_cinder_volume.consistencygroup
             self._add_volume_to_cg(tgt_infinidat_volume, cinder_cg)

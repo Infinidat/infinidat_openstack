@@ -178,6 +178,8 @@ def parse_environment(text):
             for line in text.splitlines()
             if "=" in line and line.startswith("export ")]
     env = dict(items)  # no dict comprehension in Python-2.6
+    for key in env:
+        env[key] = env[key].strip()
     return env["OS_USERNAME"], env["OS_PASSWORD"], env["OS_TENANT_NAME"], env["OS_AUTH_URL"].replace('v3', 'v2.0')
 
 

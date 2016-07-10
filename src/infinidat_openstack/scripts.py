@@ -27,6 +27,7 @@ Options:
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --commit                             commit the changes into cinder's configuration file (also erases the comments inside it)
     --protocol=<protocol>                preferred protocol: fc or iscsi [default: iscsi]
+    --post-mortem                         enter post-mortem debugging of the last traceback
 """
 
 
@@ -277,6 +278,7 @@ def main(argv=sys.argv[1:]):
     from traceback import print_exception
     from infinisdk.core.exceptions import APICommandFailed
     from logbook.handlers import NullHandler
+    from pdb import post_mortem
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments.get('--config-file')
     rc_file = arguments.get('--rc-file')
@@ -290,14 +292,22 @@ def main(argv=sys.argv[1:]):
         try:
             return handle_commands(arguments, config_file)
         except SystemExit:
+            if arguments['--post-mortem']:
+                post_mortem()
             raise
         except APICommandFailed as error:
+            if arguments['--post-mortem']:
+                post_mortem()
             print("InfiniBox API failed: {0}".format(error.message), file=sys.stderr)
             raise SystemExit(1)
         except UserException as error:
+            if arguments['--post-mortem']:
+                post_mortem()
             print(error.message or error, file=sys.stderr)
             raise SystemExit(1)
         except:
+            if arguments['--post-mortem']:
+                post_mortem()
             print("ERROR: Caught unhandled exception", file=sys.stderr)
             print_exception(*sys.exc_info(), file=sys.stderr)
             raise SystemExit(1)

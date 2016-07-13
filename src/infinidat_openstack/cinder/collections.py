@@ -1,3 +1,6 @@
+# This file contains the implementation of some of the functions in the 'collections' module that are new in Python 2.7
+# The code is taken from the Python 2.7 implementation
+
 __all__ = ['Counter', 'deque', 'defaultdict', 'namedtuple', 'OrderedDict']
 # For bootstrapping reasons, the collection ABCs are defined in _abcoll.py.
 # They should however be considered an integral part of collections.py.

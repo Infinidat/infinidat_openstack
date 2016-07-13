@@ -1,6 +1,6 @@
 Overview
 ========
-This project implements the InfiniBox Cidner Driver.
+This project implements the InfiniBox Cinder Driver.
 
 
 Checking out the code

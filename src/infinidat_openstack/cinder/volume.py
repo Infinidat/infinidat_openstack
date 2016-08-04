@@ -109,7 +109,7 @@ def _infinisdk_to_cinder_exceptions_context():
     from infinisdk.core.exceptions import InfiniSDKException
     try:
         yield
-    except InfiniSDKException, e:
+    except InfiniSDKException as e:
         LOG.exception("Caught InfiniSDK")
         raise InfiniSDKException(str(e))
 
@@ -337,8 +337,8 @@ class InfiniboxVolumeDriver(driver.VolumeDriver):
             host = self._find_or_create_host_by_port(wwpn)
             self._set_host_metadata(host)
             lun = self._get_or_create_lun(host, infinidat_volume)
-            access_mode = 'ro' if infinidat_volume.is_write_protected() else 'rw'
-            target_wwn = [str(wwn) for wwn in self.system.components.fc_ports.get_online_target_addresses()]
+        access_mode = 'ro' if infinidat_volume.is_write_protected() else 'rw'
+        target_wwn = [str(wwn) for wwn in self.system.components.fc_ports.get_online_target_addresses()]
 
         # See comments in cinder/volume/driver.py:FibreChannelDriver about the structure we need to return.
         return dict(driver_volume_type='fibre_channel',

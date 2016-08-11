@@ -409,10 +409,7 @@ class RealTestCaseMixin(object):
 
     @classmethod
     def teardown_infinibox(cls):
-        try:
-            cls.system.release()
-        except:
-            pass
+        cls.system.release()
 
     @classmethod
     def selective_skip(cls):

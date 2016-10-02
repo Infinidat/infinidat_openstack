@@ -34,6 +34,7 @@ except (ImportError, NameError):
     except (ImportError, NameError):
         import logging
 
+from infinidat_openstack.__version__ import __version__
 from contextlib import contextmanager
 from capacity import GiB
 from time import sleep, time
@@ -170,7 +171,7 @@ def get_powertools_version():
 
 
 class InfiniboxVolumeDriver(driver.VolumeDriver):
-    VERSION = '1.1'
+    VERSION = __version__
 
     def __init__(self, *args, **kwargs):
         super(InfiniboxVolumeDriver, self).__init__(*args, **kwargs)

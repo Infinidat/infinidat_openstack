@@ -23,7 +23,7 @@ class InstallerMixin(object):
                 self.assert_volume_driver_importable()
                 self.assert_commandline_tool_works()
 
-    def test_package_upgrade(self):
+    def test_package_build_and_upgrade(self):
         first, second = self.build_two_packages()
         self.assertNotEquals(first, second)
         with self.assert_not_installed_context():

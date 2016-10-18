@@ -102,7 +102,7 @@ def delete_uneeded_files():
     for filepath in glob.glob(os.path.join(buildroot, "usr", "bin", "*")):
         if not filepath.endswith("infini-openstack"):
             os.remove(filepath)
-    for filepath in glob.glob(os.path.join(buildroot, "usr", "lib", "python*", "site-packages", "*", "requires.txt")):
+    for filepath in glob.glob(os.path.join(buildroot, "usr", "lib*", "python*", "site-packages", "*", "requires.txt")):
         os.remove(filepath)
 
 

@@ -28,9 +28,10 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 InfiniBox().pools.safe_get.return_value = pool
@@ -47,17 +48,19 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 InfiniBox().pools.safe_get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 InfiniBox().pools.safe_get.return_value = pool
@@ -77,17 +80,19 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 InfiniBox().pools.safe_get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 InfiniBox().pools.safe_get.return_value = pool
@@ -105,17 +110,19 @@ class ConfigTestCase(TestCase):
         self.prepare_conf(filepath)
         with config.get_config_parser(filepath, True) as config_parser:
             self.assertEquals(config.get_enabled_backends(config_parser), list())
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 1
                 InfiniBox().pools.safe_get.return_value = pool
                 key = config.apply(config_parser, **kwargs)
                 config.enable(config_parser, key)
-            with patch("infinisdk.InfiniBox") as InfiniBox, patch("requests.get") as version_request:
+            with patch("infinisdk.InfiniBox") as InfiniBox, \
+                 patch("infinidat_openstack.version_check.get_system_version") as system_version:
                 InfiniBox().get_serial.return_value = 1
-                version_request().json.return_value = '1.5'
+                system_version().json.return_value = '1.5'
                 pool = Mock()
                 pool.get_id.return_value = 2
                 InfiniBox().pools.safe_get.return_value = pool

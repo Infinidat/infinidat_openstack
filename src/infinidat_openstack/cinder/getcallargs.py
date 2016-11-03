@@ -1,8 +1,12 @@
+# This file contains the implementation of inspect.getcallargs, taken from the Python implementation:
+#     https://hg.python.org/cpython/file/v2.7.8/Lib/inspect.py
+# new in Python-2.7, and we need it in Python-2.6
+
 import inspect
 import sys
 
 
-def getcallargs(func, *positional, **named): # new in Python-2.7, and we need it in Python-2.6
+def getcallargs(func, *positional, **named):
     """Get the mapping of arguments to values.
 
     A dict is returned, with keys the function argument names (including the

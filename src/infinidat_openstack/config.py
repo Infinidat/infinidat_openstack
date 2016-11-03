@@ -1,4 +1,20 @@
+# Copyright 2016 Infinidat Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 from __future__ import print_function
+from __future__ import absolute_import
 import contextlib
 import hashlib
 import random
@@ -50,8 +66,13 @@ def get_config_parser(filepath="/etc/cinder/cinder.conf", write_on_exit=False):
                 parser.write(fd)
 
 
+try:
+    from cinder.volume.drivers.infinidat import InfiniboxVolumeDriver
+    VOLUME_DRIVER = "cinder.volume.drivers.infinidat.InfiniboxVolumeDriver"
+except ImportError:
+    VOLUME_DRIVER = "infinidat_openstack.cinder.InfiniboxVolumeDriver"
+
 ENABLED_BACKENDS = dict(section="DEFAULT", option="enabled_backends")
-VOLUME_DRIVER = "infinidat_openstack.cinder.InfiniboxVolumeDriver"
 SETTINGS = [
     ("address", "san_ip"),
     ("pool_id", "infinidat_pool_id"),
@@ -131,11 +152,16 @@ def remove(config_parser, key):
 def apply(config_parser, address, pool_name, username, password, volume_backend_name=None, thick_provisioning=False, prefer_fc=False, infinidat_allow_pool_not_found=False, infinidat_purge_volume_on_deletion=False):
     import sys
     from infinisdk import InfiniBox
+    from infinisdk.core.exceptions import SystemNotFoundException
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
-    system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    try:
+        system = InfiniBox(address, use_ssl=True, auth=(username, password))
+    except SystemNotFoundException:
+        system = None
     if system is None:
         print("Could not connect to system \"{}\"".format(pool_name), file=sys.stderr)
         raise SystemExit(1)
+    system.login()
     raise_if_unsupported(get_system_version(address, username, password, system))
     pool = system.pools.safe_get(name=pool_name)
     if pool is None:

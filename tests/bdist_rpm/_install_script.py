@@ -67,13 +67,13 @@ def build_dependency(dependency):
         url = "http://pypi.infinidat.com/media/dists/{}".format(tgz)
         filepath = ".cache/dist/{}".format(tgz)
         urlretrieve(url, filepath)
-    # handle packages like json_rest, infinibox_sysdefs and python-cinderclient
+    # handle packages like infinibox_sysdefs and python-cinderclient
     files = set.union(set(insensitive_glob(".cache/dist/{}-*tar.gz".format(dependency.replace('-', '_')))),
                       set(insensitive_glob(".cache/dist/{}-*tar.gz".format(dependency.replace('_', '-')))))
     for fname in files:
         os.chdir(CURDIR)
         system("tar zxf {}".format(fname))
-        # handle packages like json_rest, infinibox_sysdefs and python-cinderclient
+        # handle packages like infinibox_sysdefs and python-cinderclient
         directories = set.union(set(insensitive_glob("{}*".format(dependency.replace('-', '_')))),
                                 set(insensitive_glob("{}*".format(dependency.replace('_', '-')))))
         dirname = [item for item in directories if os.path.isdir(item)][0]
@@ -102,7 +102,7 @@ def delete_uneeded_files():
     for filepath in glob.glob(os.path.join(buildroot, "usr", "bin", "*")):
         if not filepath.endswith("infini-openstack"):
             os.remove(filepath)
-    for filepath in glob.glob(os.path.join(buildroot, "usr", "lib", "python*", "site-packages", "*", "requires.txt")):
+    for filepath in glob.glob(os.path.join(buildroot, "usr", "lib*", "python*", "site-packages", "*", "requires.txt")):
         os.remove(filepath)
 
 

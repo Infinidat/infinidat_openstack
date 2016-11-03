@@ -1,8 +1,23 @@
+# Copyright 2016 Infinidat Ltd.
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
 """infini-openstack v{0}
 
 Usage:
     infini-openstack [options] volume-backend list
-    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning] [--volume-backend-name=volume_backend_name]
+    infini-openstack [options] volume-backend set <management-address> <username> <password> <pool-name> [--thick-provisioning] [--volume-backend-name=volume_backend_name] [--protocol=<protocol>]
     infini-openstack [options] volume-backend remove <management-address> <pool-id>
     infini-openstack [options] volume-backend enable <management-address> <pool-id>
     infini-openstack [options] volume-backend disable <management-address> <pool-id>
@@ -26,6 +41,8 @@ Options:
     --config-file=<config-file>          cinder configuration file [default: /etc/cinder/cinder.conf]
     --rc-file=<rc-file>                  openstack rc file [default: ~/keystonerc_admin]
     --commit                             commit the changes into cinder's configuration file (also erases the comments inside it)
+    --protocol=<protocol>                preferred protocol: fc or iscsi [default: iscsi]
+    --post-mortem                         enter post-mortem debugging of the last traceback
 """
 
 
@@ -72,7 +89,7 @@ def volume_backend_list(config_parser, cinder_client, arguments):
     table = PrettyTable(TABLE_HEADER)  # v0.6.1 installed by openstack does not print empty tables
     backends = get_enabled_backends(config_parser)
     for volume_backend in volume_backends:
-        status = "connection successul"
+        status = "connection successful"
         system_serial = system_name = pool_name = 'n/a'
         try:
             infinisdk = get_infinisdk_for_volume_backend(volume_backend)
@@ -95,7 +112,8 @@ def volume_backend_set(config_parser, cinder_client, arguments):
                        arguments.username,
                        arguments.password,
                        volume_backend_name,
-                       arguments.get("--thick-provisioning"))
+                       arguments.get("--thick-provisioning"),
+                       arguments.get("--protocol", "iscsi").lower() == 'fc')
     if volume_backend_name and key != volume_backend_name:
         print("This InfiniBox is already configured with a different backend name: {}. "
               "Please use the rename options instead of --volume-backend-name".format(key), file=sys.stderr)
@@ -176,7 +194,9 @@ def parse_environment(text):
             for line in text.splitlines()
             if "=" in line and line.startswith("export ")]
     env = dict(items)  # no dict comprehension in Python-2.6
-    return env["OS_USERNAME"], env["OS_PASSWORD"], env["OS_TENANT_NAME"], env["OS_AUTH_URL"]
+    for key in env:
+        env[key] = env[key].strip()
+    return env["OS_USERNAME"], env["OS_PASSWORD"], env["OS_TENANT_NAME"], env["OS_AUTH_URL"].replace('v3', 'v2.0')
 
 
 def get_cinder_client(rcfile):
@@ -207,6 +227,7 @@ def get_infinisdk_from_arguments(arguments):
     from infinisdk import InfiniBox
     from infinidat_openstack.versioncheck import raise_if_unsupported, get_system_version
     system = InfiniBox(arguments.address, use_ssl=True, auth=(arguments.username, arguments.password))
+    system.login()
     raise_if_unsupported(get_system_version(arguments.address, arguments.username, arguments.password, system))
     return system
 
@@ -272,6 +293,7 @@ def main(argv=sys.argv[1:]):
     from traceback import print_exception
     from infinisdk.core.exceptions import APICommandFailed
     from logbook.handlers import NullHandler
+    from pdb import post_mortem
     arguments = docopt.docopt(__doc__.format(__version__), argv=argv, version=__version__)
     config_file = arguments.get('--config-file')
     rc_file = arguments.get('--rc-file')
@@ -285,14 +307,22 @@ def main(argv=sys.argv[1:]):
         try:
             return handle_commands(arguments, config_file)
         except SystemExit:
+            if arguments['--post-mortem']:
+                post_mortem()
             raise
         except APICommandFailed as error:
+            if arguments['--post-mortem']:
+                post_mortem()
             print("InfiniBox API failed: {0}".format(error.message), file=sys.stderr)
             raise SystemExit(1)
         except UserException as error:
+            if arguments['--post-mortem']:
+                post_mortem()
             print(error.message or error, file=sys.stderr)
             raise SystemExit(1)
         except:
+            if arguments['--post-mortem']:
+                post_mortem()
             print("ERROR: Caught unhandled exception", file=sys.stderr)
             print_exception(*sys.exc_info(), file=sys.stderr)
             raise SystemExit(1)

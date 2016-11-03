@@ -1,10 +1,7 @@
 Overview
 ========
-This is an Infinidat project.
+This project implements the InfiniBox Cinder Driver.
 
-Usage
------
-Nothing to use here.
 
 Checking out the code
 =====================
@@ -13,6 +10,7 @@ Run the following:
 
     easy_install -U infi.projector
     projector devenv build
+
 
 testing
 =======

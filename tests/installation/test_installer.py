@@ -24,7 +24,6 @@ class InstallerMixin(object):
                 self.assert_commandline_tool_works()
 
     def test_package_build_and_upgrade(self):
-        raise SkipTest("temporary skip to isolated tests failure. remove me")
         first, second = self.build_two_packages()
         self.assertNotEquals(first, second)
         with self.assert_not_installed_context():
@@ -92,6 +91,7 @@ class RPMTestCase(TestCase, InstallerMixin):
             yield
         finally:
             execute_assert_success(["rpm", "-e", "infinidat_openstack"])
+            execute_assert_success(["openstack-service", "restart", "cinder"])
 
     @contextmanager
     def upgrade_context(self, package):

@@ -57,6 +57,7 @@ class InstallerMixin(object):
         second = self.build()
         def _delete_second():
             os.remove(second)
+            execute_assert_success(["rm", "-rf", "deb_dist"])
         self.addCleanup(_delete_second)
         return first, second
 

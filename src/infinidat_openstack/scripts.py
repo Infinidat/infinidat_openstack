@@ -192,7 +192,7 @@ def parse_environment(text):
     """:returns: a 4tuple (username, password, project, url"""
     items = [(line.split("=")[0].split()[1], line.split("=")[1])
             for line in text.splitlines()
-            if "=" in line and line.startswith("export ")]
+            if "=" in line and line.strip().startswith("export ")]
     env = dict(items)  # no dict comprehension in Python-2.6
     for key in env:
         env[key] = env[key].strip()

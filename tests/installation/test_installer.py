@@ -1,4 +1,4 @@
-from os import path
+import os
 from unittest import TestCase, SkipTest
 from infi.pyutils.contexts import contextmanager
 from infi.execute import execute_assert_success
@@ -24,7 +24,6 @@ class InstallerMixin(object):
                 self.assert_commandline_tool_works()
 
     def test_package_build_and_upgrade(self):
-        raise SkipTest("temporary skip to isolated tests failure. remove me")
         first, second = self.build_two_packages()
         self.assertNotEquals(first, second)
         with self.assert_not_installed_context():
@@ -56,13 +55,17 @@ class InstallerMixin(object):
             execute_assert_success(["bin/buildout", "buildout:develop=", "install", "setup.py", "__version__.py"])
         self.addCleanup(_revert)
         second = self.build()
+        def _delete_second():
+            os.remove(second)
+            execute_assert_success(["rm", "-rf", "deb_dist"])
+        self.addCleanup(_delete_second)
         return first, second
 
 
 class RPMTestCase(TestCase, InstallerMixin):
     @classmethod
     def setUpClass(cls):
-        if not path.exists("/usr/bin/cinder"):
+        if not os.path.exists("/usr/bin/cinder"):
             raise SkipTest("openstack not installed")
         if 'centos' not in get_platform_string() and 'redhat' not in get_platform_string():
             raise SkipTest("not centos or redhat")
@@ -106,7 +109,7 @@ class RPMTestCase(TestCase, InstallerMixin):
 class DEBTestCase(TestCase, InstallerMixin):
     @classmethod
     def setUpClass(cls):
-        if not path.exists("/opt/stack"):
+        if not os.path.exists("/opt/stack"):
             raise SkipTest("devstack not installed")
         if 'ubuntu' not in get_platform_string():
             raise SkipTest("not ubuntu")
@@ -147,4 +150,4 @@ class DEBTestCase(TestCase, InstallerMixin):
 
     def assert_package_installed(self, package):
         result = execute_assert_success(["dpkg", "-l", "python-infinidat-openstack"]).get_stdout()
-        self.assertIn(path.basename(package).split('_')[0].split('-')[0], result)
+        self.assertIn(os.path.basename(package).split('_')[0].split('-')[0], result)

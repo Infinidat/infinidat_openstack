@@ -3,6 +3,7 @@ import os
 import urllib
 import shutil
 import infi.traceback
+from infi.execute import execute_assert_success
 
 CURDIR = os.path.abspath('.')
 INSTALL_LINE = "$PYTHON setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record={0}"
@@ -29,9 +30,9 @@ def urlretrieve(*args, **kwargs):
     urllib.urlretrieve(*args, **kwargs)
 
 
-def system(*args, **kwargs):
-    print args, kwargs  # helpful in debugging
-    os.system(*args, **kwargs)
+def system(line):
+    print "executing:", line
+    execute_assert_success(line, shell=True)
 
 
 def remove_glob(pattern):

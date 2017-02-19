@@ -113,9 +113,8 @@ class DEBTestCase(TestCase, InstallerMixin):
             raise SkipTest("devstack not installed")
         if 'ubuntu' not in get_platform_string():
             raise SkipTest("not ubuntu")
-        execute_assert_success("apt-get install -y python-all python-all-dev python-setuptools debhelper".split(' '))
-        execute_assert_success("/usr/bin/easy_install -U setuptools".split(' '))
-        execute_assert_success("/usr/bin/easy_install -U stdeb".split(' '))
+        execute_assert_success("apt-get install -y python-all python-all-dev python-pip debhelper".split(' '))
+        execute_assert_success("/usr/bin/pip install -U stdeb".split(' '))
         execute_assert_success(["rm", "-rf", "dist"])
 
     def build(self):

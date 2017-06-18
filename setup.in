@@ -6,7 +6,7 @@ SETUP_INFO = dict(
     author_email = '${infi.recipe.template.version:author_email}',
 
     url = ${infi.recipe.template.version:homepage},
-    license = 'BSD',
+    license = 'Apache 2.0',
     description = """${project:description}""",
     long_description = """${project:long_description}""",
 
@@ -14,7 +14,7 @@ SETUP_INFO = dict(
     classifiers = [
         "Intended Audience :: Developers",
         "Intended Audience :: System Administrators",
-        "License :: OSI Approved :: BSD License",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
